@@ -22,6 +22,16 @@ target_include_directories(langevin_dynamics PRIVATE
     ${SOURCE_DIR}
 )
 
+# netcdf
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET netcdf)
+
+find_library(NETCDF_CXX_LIBRARY netcdf-cxx4 REQUIRED)
+
+target_link_libraries(langevin_dynamics PRIVATE
+    PkgConfig::NETCDF
+    ${NETCDF_CXX_LIBRARY}
+)
 
 # compilation warnings
 target_compile_options(langevin_dynamics PRIVATE
