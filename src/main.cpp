@@ -1,4 +1,4 @@
-#include <iostream>
+
 #include "input/input.hpp"
 
 // initialize grid -> q,p,F,T arrays m?
@@ -23,11 +23,10 @@
 // at extract times - write current state into result arrays
 
 int main() {
+
     // load input params
-
-    Config config = load_config("src/input/input.toml");
-    std::cout << "Grid:" << config.grid.N;
-
+    const Config config = load_config("src/input/input.toml");
+    print_config(config);
 
     return 0;
 }

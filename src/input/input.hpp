@@ -38,3 +38,4 @@ struct Config {
 };
 
 Config load_config(const std::string &filename);
+void print_config(const Config& config);
