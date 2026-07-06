@@ -17,4 +17,5 @@ N = 1000
 omega = 1.0
 beta = 1.0
 EJ = 1.0
-gamma = 1.0
+lambda = 1.0
+left_bath_T = 2.0

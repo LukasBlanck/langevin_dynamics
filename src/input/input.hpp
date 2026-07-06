@@ -26,7 +26,8 @@ struct Config {
         double omega = 1.0;
         double beta = 1.0;
         double EJ = 1.0;
-        double gamma = 1.0;
+        double lambda = 1.0;
+        double left_bath_T = 2.0;
     };
 
     // initialize

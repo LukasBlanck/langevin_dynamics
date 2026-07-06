@@ -24,8 +24,8 @@ Config load_config(const std::string &filename) {
     config.model.omega = table["model"]["omega"].value_or(config.model.omega);
     config.model.beta = table["model"]["beta"].value_or(config.model.beta);
     config.model.EJ = table["model"]["EJ"].value_or(config.model.EJ);
-    config.model.gamma = table["model"]["gamma"].value_or(config.model.gamma);
-
+    config.model.lambda = table["model"]["lambda"].value_or(config.model.lambda);
+    config.model.left_bath_T = table["model"]["left_bath_T"].value_or(config.model.left_bath_T);
     return config;
 }
 
@@ -66,8 +66,10 @@ void print_config(const Config& config) {
               << " = " << config.model.beta << "\n";
     std::cout << "  " << std::left << std::setw(label_width) << "EJ"
               << " = " << config.model.EJ << "\n";
-    std::cout << "  " << std::left << std::setw(label_width) << "gamma"
-              << " = " << config.model.gamma << "\n\n";
+    std::cout << "  " << std::left << std::setw(label_width) << "lambda"
+              << " = " << config.model.lambda << "\n";
+    std::cout << "  " << std::left << std::setw(label_width) << "left_bath_T"
+              << " = " << config.model.left_bath_T << "\n\n";
 
     std::cout << "──────────────────────────────────────────────\n";
     std::cout << "Simulation setup complete.\n";
