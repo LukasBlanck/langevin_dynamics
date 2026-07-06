@@ -1,0 +1,20 @@
+[grid]
+N = 64
+
+[conventions]
+m = 1
+kB = 1
+
+[time]
+Nt = 10000
+end_time = 5
+save_every = 10
+
+[ensemble]
+N = 1000
+
+[model]
+omega = 1.0
+beta = 1.0
+EJ = 1.0
+gamma = 1.0
