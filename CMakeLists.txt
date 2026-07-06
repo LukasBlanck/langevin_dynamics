@@ -26,11 +26,14 @@ target_include_directories(langevin_dynamics PRIVATE
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET netcdf)
 
-find_library(NETCDF_CXX_LIBRARY netcdf-cxx4 REQUIRED)
+target_include_directories(langevin_dynamics PRIVATE
+    /opt/homebrew/include
+    /opt/homebrew/opt/netcdf-cxx/include
+)
 
 target_link_libraries(langevin_dynamics PRIVATE
     PkgConfig::NETCDF
-    ${NETCDF_CXX_LIBRARY}
+    /opt/homebrew/opt/netcdf-cxx/lib/libnetcdf-cxx4.dylib
 )
 
 # compilation warnings
