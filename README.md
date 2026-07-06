@@ -34,7 +34,7 @@ This means, that there is no time dependent correlation between forces at differ
 We write the most generic 1D Hamiltonian in the following form:
 
 $$
-H(q,p) = \sum_{j=1}^{N}\frac{p_j^2}{2m} + \sum_{j=1}^{N} V(q_{j-1}-q_j)
+H(q,p) = \sum_{j=1}^{N}\frac{p_j^2}{2m} + \sum_{j=1}^{N} V(q_{j}-q_{j+1})
 $$
 
 The potential V can be either an anharmonic oscillator:
@@ -50,7 +50,7 @@ $$
 V(r) = - E_J\cos(r)
 $$
 
-We used $\boxed{r = q_{j-1}-q_j}$.
+We used $\boxed{r = q_{j}-q_{j+1}}$.
 
 
 #### Equations of Motions
@@ -63,14 +63,14 @@ $$
 Therfore:
 
 $$
-\frac{\partial p_j}{\partial t} = - [ \frac{\partial V(r_j)}{\partial q_j} + \frac{\partial V(r_{j+1})}{\partial q_j}] -\lambda v(t) + \xi(t)
+\frac{\partial p_j}{\partial t} = - [ \frac{\partial V(r_{j-1})}{\partial q_j} + \frac{\partial V(r_{j})}{\partial q_j}] -\lambda v(t) + \xi(t)
 $$
 
 or expressed explicitly:
 
 $$
 \boxed{
-dp_j = - {\color{green}{ \left[ \frac{\partial V(r_j)}{\partial q_j} + \frac{\partial V(r_{j+1})}{\partial q_j} \right] }} dt -\lambda v(t)dt + \sqrt{2\lambda m k_B T_j(t)} {\color{red}{dW_j(t)}} }
+dp_j =  {\color{green}{ -\left[ \frac{\partial V(r_{j-1})}{\partial q_j} + \frac{\partial V(r_{j})}{\partial q_j} \right] }} dt -\lambda v(t)dt + \sqrt{2\lambda m k_B T_j(t)} {\color{red}{dW_j(t)}} }
 $$
 
 The red part might be expressed as "Wiener Increments", satisfying $<dW_i, dW_j> = \delta_{i,j}dt$
@@ -166,7 +166,7 @@ $$
 ## Numerical Solver
 As a first step the 
 
-- [BAOAB Splitting Method](docs/BAOAB.md)
+- [BAOAB](docs/BAOAB.md) Splitting Method
 
 is implemented. It should provide second order weak convergence.
 
