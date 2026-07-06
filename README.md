@@ -199,3 +199,13 @@ $$
 $$
 
 For $T=0 $ and $\lambda =0$ (only Quartic Potential) global energy conservation can be tested.
+
+
+## Compile
+
+```
+cmake -S . -B build
+cmake --build build
+
+./build/langevin_dynamics
+```
