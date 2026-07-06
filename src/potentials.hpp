@@ -1,4 +1,4 @@
-// file for evaluating potentials V(r) and derivatives dV/dq
+// file for evaluating potentials V(r) and derivatives dV/dr
 #include <cmath>
 
 // FPU Potential
