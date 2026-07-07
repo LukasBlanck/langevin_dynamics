@@ -28,6 +28,7 @@ struct Config {
         double EJ = 1.0;
         double lambda = 1.0;
         double left_bath_T = 2.0;
+        std::string potential = "FPU";
     };
 
     // initialize

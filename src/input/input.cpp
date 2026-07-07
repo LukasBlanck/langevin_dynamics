@@ -26,6 +26,7 @@ Config load_config(const std::string &filename) {
     config.model.EJ = table["model"]["EJ"].value_or(config.model.EJ);
     config.model.lambda = table["model"]["lambda"].value_or(config.model.lambda);
     config.model.left_bath_T = table["model"]["left_bath_T"].value_or(config.model.left_bath_T);
+    config.model.potential = table["model"]["potential"].value_or(config.model.potential);
     return config;
 }
 
@@ -69,7 +70,9 @@ void print_config(const Config& config) {
     std::cout << "  " << std::left << std::setw(label_width) << "lambda"
               << " = " << config.model.lambda << "\n";
     std::cout << "  " << std::left << std::setw(label_width) << "left_bath_T"
-              << " = " << config.model.left_bath_T << "\n\n";
+              << " = " << config.model.left_bath_T << "\n";
+    std::cout << "  " << std::left << std::setw(label_width) << "potential"
+              << " = " << config.model.potential << "\n\n";
 
     std::cout << "──────────────────────────────────────────────\n";
     std::cout << "Simulation setup complete.\n";

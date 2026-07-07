@@ -66,7 +66,7 @@ class NetCDFWriter {
 
     void write_metadata() {
         file_.putAtt("integrator", "BAOAB");
-        file_.putAtt("model", "FPU");
+        file_.putAtt("potential", config_.model.potential);
 
         file_.putAtt("N", netCDF::ncInt, config_.grid.N);
         file_.putAtt("N_time", netCDF::ncInt, config_.time.N);

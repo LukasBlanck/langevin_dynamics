@@ -4,6 +4,8 @@
 #include "input/input.hpp"
 #include "io/netCDF_writer.hpp"
 #include "potentials.hpp"
+#include <concepts>
+#include <stdexcept>
 #include <vector>
 
 // create result arrays -> ej, pearson_corr
@@ -12,12 +14,7 @@
 
 // at extract times - write current state into result arrays
 
-int main() {
-
-    // load input params
-    const Config config = load_config("src/input/input.toml");
-    print_config(config);
-
+template <class Potential> inline void run_simulation(const Config &config) {
     // extract input params
     const int N = config.grid.N;
 
@@ -37,8 +34,7 @@ int main() {
     std::vector<double> time(n_save, 0.0);
 
     int seed = 67;
-    FPUPotential potential(config);
-
+    Potential potential(config);
 
     for (int n = 0; n < N_ensemble; n++) {
         int count = 0;
@@ -53,7 +49,7 @@ int main() {
         std::mt19937_64 rng(seed + n);
 
         // integrate
-        BAOAB<FPUPotential> integrator(config, q, p, F, dt);
+        BAOAB<Potential> integrator(config, q, p, F, dt);
 
         if (n == 0) {
             time[count] = 0.0;
@@ -94,11 +90,28 @@ int main() {
     for (int i = 0; i < n_save * N; i++) {
         sum_e[i] = sum_e[i] / N_ensemble;
     }
-
     NetCDFWriter writer("results/raw/local_energy.nc", config, n_save, N, dt);
 
     writer.write_time(time);
     writer.write_time_site_array("local_energy", "ensemble averaged local energy", "energy", sum_e);
+}
+
+int main() {
+
+    // load input params
+    const Config config = load_config("src/input/input.toml");
+    print_config(config);
+
+    // choose potential and run simulation
+    if (config.model.potential == "FPU") {
+        run_simulation<FPUPotential>(config);
+    } else if (config.model.potential == "Josephson") {
+        run_simulation<JosephsonPotential>(config);
+    } else {
+        throw std::runtime_error("No valid potential chosen. Valid potentials are: FPU, Josephson");
+    }
+
+    
 
     return 0;
 }
