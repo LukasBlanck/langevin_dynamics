@@ -1,7 +1,9 @@
 
 #include "BAOAB.hpp"
+#include "extraction_helpers.hpp"
 #include "input/input.hpp"
 #include "io/netCDF_writer.hpp"
+#include "potentials.hpp"
 #include <vector>
 
 // create result arrays -> ej, pearson_corr
@@ -20,7 +22,6 @@ int main() {
     const int N = config.grid.N;
 
     const double m = config.conventions.m;
-    const double kB = config.conventions.kB;
 
     const double end_time = config.time.end_time;
     const int N_time = config.time.N;
@@ -29,31 +30,20 @@ int main() {
 
     const int N_ensemble = config.ensemble.N;
 
-    const double w = config.model.omega;
-    const double beta = config.model.beta;
-    const double lambda = config.model.lambda;
-    const double left_bath_T = config.model.left_bath_T;
-    const double gamma = lambda / m;
-
-    // initialize grid/arrays
-
-    std::vector<double> q(N);
-    std::vector<double> p(N);
-    std::vector<double> F(N);
-
+    // saving helpers
     const int n_save = 1 + (N_time + save_every - 1) / save_every;
     std::vector<double> e(n_save * N, 0.0);
     std::vector<double> sum_e(n_save * N, 0.0);
     std::vector<double> time(n_save, 0.0);
 
     int seed = 67;
+    FPUPotential potential(config);
 
-    // initialize with q=p=F=0 for first try
-    std::fill(q.begin(), q.end(), 0.0);
-    std::fill(p.begin(), p.end(), 0.0);
 
     for (int n = 0; n < N_ensemble; n++) {
         int count = 0;
+
+        std::fill(e.begin(), e.end(), 0.0);
 
         // create initial grid
         std::vector<double> q(N, 0.0);
@@ -63,40 +53,24 @@ int main() {
         std::mt19937_64 rng(seed + n);
 
         // integrate
-        BAOAB integrator(config, q, p, F, dt);
+        BAOAB<FPUPotential> integrator(config, q, p, F, dt);
 
         if (n == 0) {
             time[count] = 0.0;
         }
 
         // save initial condition
-        for (int i = 1; i < N - 1; i++) {
-            e[i + count * N] = p[i] * p[i] / (2 * m) + 0.5 * V_FPU(q[i - 1] - q[i], w, beta) +
-                               0.5 * V_FPU(q[i] - q[i + 1], w, beta);
-        }
-        // boundary
-        e[0 + count * N] = p[0] * p[0] / (2 * m) + 0.5 * V_FPU(q[0] - q[1], w, beta);
-        e[N - 1 + count * N] =
-            p[N - 1] * p[N - 1] / (2 * m) + 0.5 * V_FPU(q[N - 2] - q[N - 1], w, beta);
-
+        symmetric_energy(e, q, p, count, N, m, potential);
         count++;
 
         // per trajectory
         for (int k = 0; k < N_time; k++) {
-            integrator.step_fpu(rng);
+            integrator.step(rng);
 
             if ((k + 1) % save_every == 0 || k + 1 == N_time) {
                 double t = (k + 1) * dt; // time after step
                 // save observables
-                for (int i = 1; i < N - 1; i++) {
-                    e[count * N + i] = p[i] * p[i] / (2 * m) +
-                                       0.5 * V_FPU(q[i - 1] - q[i], w, beta) +
-                                       0.5 * V_FPU(q[i] - q[i + 1], w, beta);
-                }
-                // boundary
-                e[0 + count * N] = p[0] * p[0] / (2 * m) + 0.5 * V_FPU(q[0] - q[1], w, beta);
-                e[N - 1 + count * N] =
-                    p[N - 1] * p[N - 1] / (2 * m) + 0.5 * V_FPU(q[N - 2] - q[N - 1], w, beta);
+                symmetric_energy(e, q, p, count, N, m, potential);
 
                 if (n == 0) {
                     time[count] = t; // store exact time seperately
@@ -104,10 +78,19 @@ int main() {
                 count++;
             }
         }
+
+        // safety check
+        if (count != n_save) {
+            throw std::runtime_error("count != n_save after trajectory");
+        }
+
+        // accumulate over ensembles
         for (int i = 0; i < n_save * N; i++) {
             sum_e[i] += e[i];
         }
     }
+
+    // normalize
     for (int i = 0; i < n_save * N; i++) {
         sum_e[i] = sum_e[i] / N_ensemble;
     }

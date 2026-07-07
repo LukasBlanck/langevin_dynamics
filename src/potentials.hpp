@@ -1,23 +1,38 @@
 // file for evaluating potentials V(r) and derivatives dV/dr
+#pragma once
+
+#include "input/input.hpp"
 #include <cmath>
+#include <string>
 
-// FPU Potential
-inline double V_FPU(double r, double w, double beta) {
-    return 0.5 * w * w * r * r + 0.25 * beta * r * r * r * r;
-}
+struct FPUPotential {
+    double omega;
+    double beta;
 
-// FPU derivative
-inline double dV_FPU(double r, double w, double beta) {
-    return w * w * r + beta * r * r * r;
-}
+    explicit FPUPotential(const Config &config)
+        : omega(config.model.omega), beta(config.model.beta) {}
 
+    // potential V
+    inline double V(double r) const {
+        return 0.5 * omega * omega * r * r + 0.25 * beta * r * r * r * r;
+    }
 
-// Josephson Potential
-inline double V_J(double r, double EJ) {
-    return -EJ * std::cos(r);
-}
+    // derivative dV/dr
+    inline double dV(double r) const { return omega * omega * r + beta * r * r * r; }
 
-// Josephson derivative
-inline double dV_J(double r, double EJ) {
-    return EJ * std::sin(r);
-}
+    static std::string name() { return "FPU"; }
+};
+
+struct JosephsonPotential {
+    double EJ;
+
+    explicit JosephsonPotential(const Config &config) : EJ(config.model.EJ) {}
+
+    // potential V
+    inline double V(double r) const { return -EJ * std::cos(r); }
+
+    // derivative dV/dr
+    inline double dV(double r) const { return EJ * std::sin(r); }
+
+    static std::string name() { return "Josephson"; }
+};
