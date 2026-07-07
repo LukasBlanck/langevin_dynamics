@@ -110,6 +110,18 @@ def plot_line(ds, da, show_metadata=False, reduce_mode="mean", output=None):
     else:
         plt.show()
 
+def is_correlation_variable(da):
+    name = (da.name or "").lower()
+    long_name = str(da.attrs.get("long_name", "")).lower()
+    units = str(da.attrs.get("units", "")).lower()
+
+    return (
+        "correlation" in name
+        or "correlation" in long_name
+        or "pearson" in name
+        or "pearson" in long_name
+        or units == "dimensionless"
+    )
 
 def plot_heatmap(ds, da, show_metadata=False, output=None):
     if "time" not in da.dims:
@@ -120,20 +132,26 @@ def plot_heatmap(ds, da, show_metadata=False, output=None):
 
     spatial_dim = get_spatial_dim(da)
 
-    # Ensure orientation is always data(site, time) for y-axis=site, x-axis=time.
     heat = da.transpose(spatial_dim, "time")
 
     fig, ax = plt.subplots(figsize=(9, 5))
 
-    image = heat.plot.imshow(
-        ax=ax,
-        x="time",
-        y=spatial_dim,
-        add_colorbar=True,
-        cbar_kwargs={
+    plot_kwargs = {
+        "ax": ax,
+        "x": "time",
+        "y": spatial_dim,
+        "add_colorbar": True,
+        "cbar_kwargs": {
             "label": make_label(da, da.name),
         },
-    )
+    }
+
+    if is_correlation_variable(da):
+        plot_kwargs["vmin"] = -1.0
+        plot_kwargs["vmax"] = 1.0
+        plot_kwargs["cmap"] = "RdBu_r"
+
+    heat.plot.imshow(**plot_kwargs)
 
     ax.set_xlabel(make_label(ds["time"], "time"))
     ax.set_ylabel(spatial_dim)
@@ -186,7 +204,7 @@ def plot_netcdf(
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
 
-    with xr.open_dataset(path) as ds:
+    with xr.open_dataset(path, decode_times=False) as ds:
         if "time" not in ds:
             raise KeyError("NetCDF file does not contain a variable or coordinate named 'time'.")
 
@@ -201,6 +219,7 @@ def plot_netcdf(
             )
 
         da = ds[variable]
+        print(f"{variable}: min={float(da.min())}, max={float(da.max())}")
 
         if kind == "line":
             plot_line(
