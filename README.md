@@ -34,7 +34,7 @@ This means, that there is no time dependent correlation between forces at differ
 We write the most generic 1D Hamiltonian in the following form:
 
 $$
-H(q,p) = \sum_{j=1}^{N}\frac{p_j^2}{2m} + \sum_{j=1}^{N} V(q_{j}-q_{j+1})
+H(q,p) = \sum_{j=1}^{N}\frac{p_j^2}{2m} + \sum_{j=1}^{N-1} V(q_{j}-q_{j+1})
 $$
 
 The potential V can be either an anharmonic oscillator:
@@ -217,3 +217,19 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+The generic plotting file is provided with 
+```
+python scripts/plot.py <path>
+```
+To inspect all possibilities, run:
+
+```
+python scripts/plot.py <path> -h              // provides help
+```
+
+#### Automated Script
+To run the simulation for FPU and Josephson potential and save the plots (energy heatmap and pearson correlations), execute
+```
+python scripts/run.py
+``` 
