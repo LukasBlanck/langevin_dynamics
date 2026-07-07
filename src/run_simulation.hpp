@@ -6,11 +6,18 @@
 #include "extraction_helpers.hpp"
 #include "input/input.hpp"
 #include "io/netCDF_writer.hpp"
+#include <cassert>
 #include <filesystem>
 #include <stdexcept>
 #include <vector>
 
-template <class Potential> inline void run_simulation(const Config &config, const std::string& output_path) {
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <random>
+
+template <class Potential>
+inline void run_simulation(const Config &config, const std::string &output_path) {
     // extract input params
     const int N = config.grid.N;
 
@@ -28,6 +35,15 @@ template <class Potential> inline void run_simulation(const Config &config, cons
     std::vector<double> e(n_save * N, 0.0);
     std::vector<double> sum_e(n_save * N, 0.0);
     std::vector<double> time(n_save, 0.0);
+
+    // pearson correlators
+    std::vector<double> pj0(n_save * N, 0.0);
+    std::vector<double> pj(n_save * N, 0.0);
+    std::vector<double> p0(n_save * N, 0.0);
+
+    // pearson normalize vectors
+    std::vector<double> pj2(n_save * N, 0.0); // <pj^2>
+    std::vector<double> p02(n_save * N, 0.0); // <p0^2>
 
     int seed = 67;
     Potential potential(config);
@@ -53,6 +69,7 @@ template <class Potential> inline void run_simulation(const Config &config, cons
 
         // save initial condition
         symmetric_energy(e, q, p, count, N, m, potential);
+        pearson_correlators(pj0, pj, p0, pj2, p02, p, count, N);
         count++;
 
         // per trajectory
@@ -63,6 +80,7 @@ template <class Potential> inline void run_simulation(const Config &config, cons
                 double t = (k + 1) * dt; // time after step
                 // save observables
                 symmetric_energy(e, q, p, count, N, m, potential);
+                pearson_correlators(pj0, pj, p0, pj2, p02, p, count, N);
 
                 if (n == 0) {
                     time[count] = t; // store exact time seperately
@@ -83,16 +101,26 @@ template <class Potential> inline void run_simulation(const Config &config, cons
     }
 
     // normalize
+    const double inv_ensemble = 1.0 / static_cast<double>(N_ensemble);
     for (int i = 0; i < n_save * N; i++) {
-        sum_e[i] = sum_e[i] / N_ensemble;
+        sum_e[i] = sum_e[i] * inv_ensemble;
     }
+
+    // process pearson
+    std::vector<double> corr_p0(n_save * N, 0.0);
+    process_pearson_correlators(corr_p0, pj0, pj, p0, pj2, p02, n_save, N, inv_ensemble);
 
     // write results
     std::filesystem::create_directories(std::filesystem::path(output_path).parent_path());
     NetCDFWriter writer(output_path, config, n_save, N, dt);
 
     writer.write_time(time);
+    // local energy
     writer.write_time_site_array("local_energy", "ensemble averaged local energy", "energy", sum_e);
+    // pearson correlation
+    writer.write_time_site_array("pearson_momentum_correlation",
+                                 "Pearson momentum correlation with left boundary (site at 0)",
+                                 "dimensionless", corr_p0);
 
     // finished simulation
     std::cout << "Finished simulation.\n";
