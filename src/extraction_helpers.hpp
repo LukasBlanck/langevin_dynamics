@@ -1,7 +1,6 @@
 // this file provides functions to extract observables at runtime
 #pragma once
 
-#include <vector>
 #include <cmath>
 #include <stdexcept>
 #include <vector>
@@ -43,12 +42,11 @@ inline void pearson_correlators(std::vector<double> &pj0, std::vector<double> &p
     }
 }
 
-inline void process_pearson_correlators(std::vector<double>& corr_p0, const std::vector<double> &pj0,
-                                        const std::vector<double> &pj,
-                                        const std::vector<double> &p0,
-                                        const std::vector<double> &pj2,
-                                        const std::vector<double> &p02, int n_save, int N,
-                                        double inv_ensemble) {
+inline void
+process_pearson_correlators(std::vector<double> &corr_p0, const std::vector<double> &pj0,
+                            const std::vector<double> &pj, const std::vector<double> &p0,
+                            const std::vector<double> &pj2, const std::vector<double> &p02,
+                            int n_save, int N, double inv_ensemble) {
     for (int i = 0; i < n_save * N; i++) {
         const double mean_pj0 = pj0[i] * inv_ensemble;
         const double mean_pj = pj[i] * inv_ensemble;
@@ -70,5 +68,25 @@ inline void process_pearson_correlators(std::vector<double>& corr_p0, const std:
         } else {
             corr_p0[i] = 0.0;
         }
+    }
+}
+
+inline void pearson_bond_correlators(std::vector<double> &rj0, std::vector<double> &rj,
+                                     std::vector<double> &r0, std::vector<double> &rj2,
+                                     std::vector<double> &r02, const std::vector<double> &q,
+                                     int count, int N_bond) {
+    const int stride = count * N_bond;
+
+    const double r_left = q[0] - q[1];
+
+    for (int b = 0; b < N_bond; ++b) {
+        const double rb = q[b] - q[b + 1];
+
+        rj0[stride + b] += rb * r_left;
+        rj[stride + b] += rb;
+        r0[stride + b] += r_left;
+
+        rj2[stride + b] += rb * rb;
+        r02[stride + b] += r_left * r_left;
     }
 }

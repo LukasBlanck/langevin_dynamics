@@ -41,6 +41,25 @@ class NetCDFWriter {
         var.putVar(data.data());
     }
 
+    void write_time_bond_array(const std::string &name, const std::string &long_name,
+                               const std::string &units, const std::vector<double> &data) {
+        const int N_bond = N_ - 1;
+
+        if (static_cast<int>(data.size()) != n_save_ * N_bond) {
+            throw std::runtime_error("Data size does not match [time, bond] dimensions");
+        }
+
+        std::vector<netCDF::NcDim> dims{timeDim_, bondDim_};
+
+        netCDF::NcVar var = file_.addVar(name, netCDF::ncDouble, dims);
+
+        var.putAtt("long_name", long_name);
+        var.putAtt("units", units);
+        var.putAtt("layout", "time, bond");
+
+        var.putVar(data.data());
+    }
+
   private:
     netCDF::NcFile file_;
     const Config &config_;
@@ -51,12 +70,14 @@ class NetCDFWriter {
 
     netCDF::NcDim timeDim_;
     netCDF::NcDim siteDim_;
+    netCDF::NcDim bondDim_;
 
     netCDF::NcVar timeVar_;
 
     void define_dimensions() {
         timeDim_ = file_.addDim("time", n_save_);
         siteDim_ = file_.addDim("site", N_);
+        bondDim_ = file_.addDim("bond", N_ - 1);
 
         timeVar_ = file_.addVar("time", netCDF::ncDouble, timeDim_);
 

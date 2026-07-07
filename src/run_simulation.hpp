@@ -54,6 +54,15 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     std::vector<double> qj2(n_save * N, 0.0); // <qj^2>
     std::vector<double> q02(n_save * N, 0.0); // <q0^2>
 
+    const int N_bond = N - 1;
+    // Pearson bond-displacement correlators r_j with r_0
+    std::vector<double> rj0(n_save * N_bond, 0.0);
+    std::vector<double> rj(n_save * N_bond, 0.0);
+    std::vector<double> r0(n_save * N_bond, 0.0);
+
+    std::vector<double> rj2(n_save * N_bond, 0.0);
+    std::vector<double> r02(n_save * N_bond, 0.0);
+
     int seed = 67;
     Potential potential(config);
 
@@ -80,6 +89,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         symmetric_energy(e, q, p, count, N, m, potential);
         pearson_correlators(pj0, pj, p0, pj2, p02, p, count, N);
         pearson_correlators(qj0, qj, q0, qj2, q02, q, count, N);
+        pearson_bond_correlators(rj0, rj, r0, rj2, r02, q, count, N_bond);
         count++;
 
         // per trajectory
@@ -92,6 +102,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                 symmetric_energy(e, q, p, count, N, m, potential);
                 pearson_correlators(pj0, pj, p0, pj2, p02, p, count, N);
                 pearson_correlators(qj0, qj, q0, qj2, q02, q, count, N);
+                pearson_bond_correlators(rj0, rj, r0, rj2, r02, q, count, N_bond);
 
                 if (n == 0) {
                     time[count] = t; // store exact time seperately
@@ -120,8 +131,10 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // process pearson
     std::vector<double> corr_p0(n_save * N, 0.0);
     std::vector<double> corr_q0(n_save * N, 0.0);
+    std::vector<double> corr_r0(n_save * N_bond, 0.0);
     process_pearson_correlators(corr_p0, pj0, pj, p0, pj2, p02, n_save, N, inv_ensemble);
     process_pearson_correlators(corr_q0, qj0, qj, q0, qj2, q02, n_save, N, inv_ensemble);
+    process_pearson_correlators(corr_r0, rj0, rj, r0, rj2, r02, n_save, N_bond, inv_ensemble);
 
     // write results
     std::filesystem::create_directories(std::filesystem::path(output_path).parent_path());
@@ -137,6 +150,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     writer.write_time_site_array("pearson_position_correlation",
                                  "Pearson position correlation with left boundary (site at 0)",
                                  "dimensionless", corr_q0);
+    writer.write_time_bond_array("pearson_bond_correlation",
+                                 "Pearson bond displacement correlation with left boundary bond",
+                                 "dimensionless", corr_r0);
 
     // finished simulation
     std::cout << "Finished simulation.\n";
