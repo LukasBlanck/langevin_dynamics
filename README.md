@@ -233,3 +233,17 @@ To run the simulation for FPU and Josephson potential and save the plots (energy
 ```
 python scripts/run.py
 ``` 
+
+
+## Tests
+
+To run tests, execute:
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_BUILD_TESTING=ON
+cmake --build build
+
+ctest --test-dir build --output-on-failure
+
+```
+
+
