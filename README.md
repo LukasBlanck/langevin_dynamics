@@ -239,7 +239,7 @@ python scripts/run.py
 
 To run tests, execute:
 ```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_BUILD_TESTING=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_TESTING=ON
 cmake --build build
 
 ctest --test-dir build --output-on-failure
