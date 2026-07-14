@@ -15,12 +15,40 @@ inline void symmetric_energy(std::vector<double> &e, const std::vector<double> &
     int stride = count * N;
     // inside sites
     for (int i = 1; i < N - 1; i++) {
-        e[i + stride] = p[i] * p[i] / (2 * m) + 0.5 * potential.V(q[i - 1] - q[i]) +
+        e[i + stride] += p[i] * p[i] / (2 * m) + 0.5 * potential.V(q[i - 1] - q[i]) +
                         0.5 * potential.V(q[i] - q[i + 1]);
     }
     // boundary
-    e[0 + stride] = p[0] * p[0] / (2 * m) + 0.5 * potential.V(q[0] - q[1]);
-    e[N - 1 + stride] = p[N - 1] * p[N - 1] / (2 * m) + 0.5 * potential.V(q[N - 2] - q[N - 1]);
+    e[0 + stride] += p[0] * p[0] / (2 * m) + 0.5 * potential.V(q[0] - q[1]);
+    e[N - 1 + stride] += p[N - 1] * p[N - 1] / (2 * m) + 0.5 * potential.V(q[N - 2] - q[N - 1]);
+}
+
+// only kinetic energy
+inline void kinetic_energy(std::vector<double> &kin_e, const std::vector<double> &p, int count,
+                           int N, double m) {
+    // the stride ist count*N <=> the spatial reslution is the stride
+
+    int stride = count * N;
+    for (int i = 0; i < N; i++) {
+        kin_e[i + stride] += p[i] * p[i] / (2 * m);
+    }
+}
+
+// only potential energy
+template <class Potential>
+inline void potential_energy(std::vector<double> &pot_e, const std::vector<double> &q, int count,
+                             int N, const Potential &potential) {
+    // the stride ist count*N <=> the spatial reslution is the stride
+
+    int stride = count * N;
+    // inside sites
+    for (int i = 1; i < N - 1; i++) {
+        pot_e[i + stride] +=
+            0.5 * potential.V(q[i - 1] - q[i]) + 0.5 * potential.V(q[i] - q[i + 1]);
+    }
+    // boundary
+    pot_e[0 + stride] += 0.5 * potential.V(q[0] - q[1]);
+    pot_e[N - 1 + stride] += 0.5 * potential.V(q[N - 2] - q[N - 1]);
 }
 
 inline void pearson_correlators(std::vector<double> &pj0, std::vector<double> &pj,

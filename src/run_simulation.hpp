@@ -33,8 +33,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // saving helpers
     const int n_save = 1 + (N_time + save_every - 1) / save_every;
     std::vector<double> e(n_save * N, 0.0);
-    std::vector<double> sum_e(n_save * N, 0.0);
     std::vector<double> time(n_save, 0.0);
+    std::vector<double> kin_e(n_save * N, 0.0);
+    std::vector<double> pot_e(n_save * N, 0.0);
 
     // pearson correlators
     std::vector<double> pj0(n_save * N, 0.0);
@@ -69,8 +70,6 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     for (int n = 0; n < N_ensemble; n++) {
         int count = 0;
 
-        std::fill(e.begin(), e.end(), 0.0);
-
         // create initial grid
         std::vector<double> q(N, 0.0);
         std::vector<double> p(N, 0.0);
@@ -87,6 +86,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
         // save initial condition
         symmetric_energy(e, q, p, count, N, m, potential);
+        kinetic_energy(kin_e, p, count, N, m);
+        potential_energy(pot_e, q, count, N, potential);
+
         pearson_correlators(pj0, pj, p0, pj2, p02, p, count, N);
         pearson_correlators(qj0, qj, q0, qj2, q02, q, count, N);
         pearson_bond_correlators(rj0, rj, r0, rj2, r02, q, count, N_bond);
@@ -100,6 +102,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                 double t = (k + 1) * dt; // time after step
                 // save observables
                 symmetric_energy(e, q, p, count, N, m, potential);
+                kinetic_energy(kin_e, p, count, N, m);
+                potential_energy(pot_e, q, count, N, potential);
+
                 pearson_correlators(pj0, pj, p0, pj2, p02, p, count, N);
                 pearson_correlators(qj0, qj, q0, qj2, q02, q, count, N);
                 pearson_bond_correlators(rj0, rj, r0, rj2, r02, q, count, N_bond);
@@ -115,17 +120,14 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         if (count != n_save) {
             throw std::runtime_error("count != n_save after trajectory");
         }
-
-        // accumulate over ensembles
-        for (int i = 0; i < n_save * N; i++) {
-            sum_e[i] += e[i];
-        }
     }
 
     // normalize
     const double inv_ensemble = 1.0 / static_cast<double>(N_ensemble);
     for (int i = 0; i < n_save * N; i++) {
-        sum_e[i] = sum_e[i] * inv_ensemble;
+        e[i] = e[i] * inv_ensemble;
+        kin_e[i] = kin_e[i] * inv_ensemble;
+        pot_e[i] = pot_e[i] * inv_ensemble;
     }
 
     // process pearson
@@ -141,8 +143,13 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     NetCDFWriter writer(output_path, config, n_save, N, dt);
 
     writer.write_time(time);
-    // local energy
-    writer.write_time_site_array("local_energy", "ensemble averaged local energy", "energy", sum_e);
+    // energy observables
+    writer.write_time_site_array("local_total_energy", "ensemble averaged local total energy",
+                                 "energy", e);
+    writer.write_time_site_array("local_kinetic_energy", "ensemble averaged local kinetic energy",
+                                 "energy", kin_e);
+    writer.write_time_site_array("local_potential_energy",
+                                 "ensemble averaged local potential energy", "energy", pot_e);
     // pearson correlation
     writer.write_time_site_array("pearson_momentum_correlation",
                                  "Pearson momentum correlation with left boundary (site at 0)",
