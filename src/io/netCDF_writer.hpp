@@ -24,6 +24,23 @@ class NetCDFWriter {
         timeVar_.putVar(time.data());
     }
 
+    void write_time_data_array(const std::string &name, const std::string &long_name,
+                               const std::string &units, const std::vector<double> &data) {
+        if (static_cast<int>(data.size()) != n_save_) {
+            throw std::runtime_error("Data size does not match time dimension");
+        }
+
+        std::vector<netCDF::NcDim> dims{timeDim_};
+
+        netCDF::NcVar var = file_.addVar(name, netCDF::ncDouble, dims);
+
+        var.putAtt("long_name", long_name);
+        var.putAtt("units", units);
+        var.putAtt("layout", "time");
+
+        var.putVar(data.data());
+    }
+
     void write_time_site_array(const std::string &name, const std::string &long_name,
                                const std::string &units, const std::vector<double> &data) {
         if (static_cast<int>(data.size()) != n_save_ * N_) {

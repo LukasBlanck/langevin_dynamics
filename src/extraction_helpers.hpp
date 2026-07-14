@@ -75,11 +75,22 @@ inline void normalized_energy(const std::vector<double> &e, std::vector<double> 
             }
             continue;
         }
-        
+
         // normalize
         for (int j = 0; j < N; ++j) {
             const double excess = e[t * N + j] - e[j];
             normalized_e[t * N + j] = excess / total_excess_per_t;
+        }
+    }
+}
+
+// first moment or centre of mass/energy
+inline void first_moment(const std::vector<double> &normalized_e,
+                         std::vector<double> &first_moments, int n_save, int N) {
+
+    for (int t = 0; t < n_save; t++) {
+        for (int j = 0; j < N; j++) {
+            first_moments[t] += normalized_e[t * N + j] * static_cast<double>(j);
         }
     }
 }
