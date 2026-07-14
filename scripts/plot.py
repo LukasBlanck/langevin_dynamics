@@ -5,6 +5,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import xarray as xr
+import numpy as np
 
 
 def make_label(da, fallback):
@@ -218,8 +219,11 @@ def plot_netcdf(
                 f"Available variables: {available}"
             )
 
+        # Info output for min, max, NaN and inf
         da = ds[variable]
-        print(f"{variable}: min={float(da.min())}, max={float(da.max())}")
+        values = da.values
+        print(f"{variable}: min={np.nanmin(values)}, max={np.nanmax(values)}")
+        print(f"{variable}: has_nan={np.isnan(values).any()}, has_inf={np.isinf(values).any()}")
 
         if kind == "line":
             plot_line(
