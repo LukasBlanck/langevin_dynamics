@@ -36,6 +36,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     std::vector<double> time(n_save, 0.0);
     std::vector<double> kin_e(n_save * N, 0.0);
     std::vector<double> pot_e(n_save * N, 0.0);
+    std::vector<double> normalized_tot_e(n_save * N, 0.0);
+    std::vector<double> normalized_pot_e(n_save * N, 0.0);  // might not be numerically reliable
+    std::vector<double> normalized_kin_e(n_save * N, 0.0);  // due to divisions with small numbers
 
     // pearson correlators
     std::vector<double> pj0(n_save * N, 0.0);
@@ -130,6 +133,11 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         pot_e[i] = pot_e[i] * inv_ensemble;
     }
 
+    // process weighted energies
+    normalized_energy(e, normalized_tot_e, n_save, N);
+    normalized_energy(kin_e, normalized_kin_e, n_save, N);
+    normalized_energy(pot_e, normalized_pot_e, n_save, N);
+
     // process pearson
     std::vector<double> corr_p0(n_save * N, 0.0);
     std::vector<double> corr_q0(n_save * N, 0.0);
@@ -150,6 +158,18 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                                  "energy", kin_e);
     writer.write_time_site_array("local_potential_energy",
                                  "ensemble averaged local potential energy", "energy", pot_e);
+
+    // weighted energies
+    writer.write_time_site_array("normalized_total_energy",
+                                 "ensemble averaged normalized local total energy", "dimensionless",
+                                 normalized_tot_e);
+    writer.write_time_site_array("normalized_kinetic_energy",
+                                 "ensemble averaged normalized local kinetic energy", "dimensionless",
+                                 normalized_kin_e);
+    writer.write_time_site_array("normalized_potential_energy",
+                                 "ensemble averaged normalized local potential energy", "dimensionless",
+                                 normalized_pot_e);
+
     // pearson correlation
     writer.write_time_site_array("pearson_momentum_correlation",
                                  "Pearson momentum correlation with left boundary (site at 0)",

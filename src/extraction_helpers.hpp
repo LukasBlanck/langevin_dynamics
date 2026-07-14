@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cmath>
+#include <functional>
 #include <stdexcept>
 #include <vector>
 
@@ -16,7 +17,7 @@ inline void symmetric_energy(std::vector<double> &e, const std::vector<double> &
     // inside sites
     for (int i = 1; i < N - 1; i++) {
         e[i + stride] += p[i] * p[i] / (2 * m) + 0.5 * potential.V(q[i - 1] - q[i]) +
-                        0.5 * potential.V(q[i] - q[i + 1]);
+                         0.5 * potential.V(q[i] - q[i + 1]);
     }
     // boundary
     e[0 + stride] += p[0] * p[0] / (2 * m) + 0.5 * potential.V(q[0] - q[1]);
@@ -51,6 +52,39 @@ inline void potential_energy(std::vector<double> &pot_e, const std::vector<doubl
     pot_e[N - 1 + stride] += 0.5 * potential.V(q[N - 2] - q[N - 1]);
 }
 
+// normalized local energy
+inline void normalized_energy(const std::vector<double> &e, std::vector<double> &normalized_e,
+                              int n_save, int N) {
+    // the stride ist t*N <=> the spatial reslution is the stride
+
+    // only spreading is interesting to us
+
+    for (int t = 0; t < n_save; t++) {
+
+        double total_excess_per_t = 0.0;
+        // extract total (excess) energy per time
+        for (int j = 0; j < N; ++j) {
+            const double excess = e[t * N + j] - e[j]; // e_j = e_j(t) - e_j(0)
+            total_excess_per_t += excess;
+        }
+
+        // avoid division by zero:
+        if (std::abs(total_excess_per_t) < 1e-14) {
+            for (int j = 0; j < N; ++j) {
+                normalized_e[t * N + j] = 0.0;
+            }
+            continue;
+        }
+        
+        // normalize
+        for (int j = 0; j < N; ++j) {
+            const double excess = e[t * N + j] - e[j];
+            normalized_e[t * N + j] = excess / total_excess_per_t;
+        }
+    }
+}
+
+// pearson correlators
 inline void pearson_correlators(std::vector<double> &pj0, std::vector<double> &pj,
                                 std::vector<double> &p0, std::vector<double> &pj2,
                                 std::vector<double> &p02, const std::vector<double> &p, int count,
