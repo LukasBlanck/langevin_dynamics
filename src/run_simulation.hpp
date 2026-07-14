@@ -11,8 +11,9 @@
 #include <stdexcept>
 #include <vector>
 
-#include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 #include <random>
 
@@ -72,6 +73,11 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     int seed = 67;
     Potential potential(config);
 
+    // ETA
+    const int eta_sample = 100;
+    const auto wall_start = std::chrono::steady_clock::now();
+    bool eta_printed = false;
+
     for (int n = 0; n < N_ensemble; n++) {
         int count = 0;
 
@@ -125,6 +131,17 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         if (count != n_save) {
             throw std::runtime_error("count != n_save after trajectory");
         }
+        // ETA
+        if (!eta_printed && n + 1 == eta_sample) {
+            const double elapsed =
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - wall_start)
+                    .count();
+            const long long eta = static_cast<long long>(
+                std::round(elapsed * (N_ensemble - eta_sample) / eta_sample));
+            std::cout << "ETA: " << eta / 60 << ":" << std::setw(2) << std::setfill('0') << eta % 60
+                      << " min:s" << std::setfill(' ') << "\n\n";
+            eta_printed = true;
+        }
     }
 
     // normalize
@@ -177,10 +194,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     // moments
     writer.write_time_data_array("first_moment_total_energy",
-                                 "ensemble averaged first momentum of total energy",
-                                 "site", first_moment_tot_e);
-    writer.write_time_data_array("total_energy_spread",
-                                 "ensemble averaged spread of total energy",
+                                 "ensemble averaged first momentum of total energy", "site",
+                                 first_moment_tot_e);
+    writer.write_time_data_array("total_energy_spread", "ensemble averaged spread of total energy",
                                  "site", tot_energy_spread);
 
     // pearson correlation
