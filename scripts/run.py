@@ -36,7 +36,9 @@ EXECUTABLE = Path("build/langevin_dynamics")
 POTENTIALS = ["FPU", "Josephson"]
 
 PLOT_VARIABLES = {
-    "heat_map": "local_energy",
+    "heat_map_total": "local_total_energy",
+    "heat_map_kinetic": "local_kinetic_energy",
+    "heat_map_potential": "local_potential_energy",
     "pearson_bond": "pearson_bond_correlation",
     "pearson_momentum": "pearson_momentum_correlation",
     "pearson_position": "pearson_position_correlation",
