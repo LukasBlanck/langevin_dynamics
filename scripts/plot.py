@@ -114,14 +114,12 @@ def plot_line(ds, da, show_metadata=False, reduce_mode="mean", output=None):
 def is_correlation_variable(da):
     name = (da.name or "").lower()
     long_name = str(da.attrs.get("long_name", "")).lower()
-    units = str(da.attrs.get("units", "")).lower()
 
     return (
         "correlation" in name
         or "correlation" in long_name
         or "pearson" in name
         or "pearson" in long_name
-        or units == "dimensionless"
     )
 
 def plot_heatmap(ds, da, show_metadata=False, output=None):
