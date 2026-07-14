@@ -122,7 +122,7 @@ def is_correlation_variable(da):
         or "pearson" in long_name
     )
 
-def plot_heatmap(ds, da, show_metadata=False, output=None):
+def plot_heatmap(ds, da, show_metadata=False, output=None, overlay_moments=False):
     if "time" not in da.dims:
         raise ValueError(
             f"Variable '{da.name}' does not have a 'time' dimension. "
@@ -151,6 +151,35 @@ def plot_heatmap(ds, da, show_metadata=False, output=None):
         plot_kwargs["cmap"] = "RdBu_r"
 
     heat.plot.imshow(**plot_kwargs)
+
+    if overlay_moments:
+        if "first_moment_total_energy" not in ds:
+            raise KeyError("Overlay requires variable 'first_moment_total_energy' in the dataset.")
+
+        centroid = ds["first_moment_total_energy"]
+
+        ax.plot(
+            ds["time"].values,
+            centroid.values,
+            linewidth=2.0,
+            label="centroid",
+        )
+
+        if "total_energy_spread" in ds:
+            spread = ds["total_energy_spread"]
+
+            lower = centroid.values - spread.values
+            upper = centroid.values + spread.values
+
+            ax.fill_between(
+                ds["time"].values,
+                lower,
+                upper,
+                alpha=0.25,
+                label="centroid ± spread",
+            )
+
+        ax.legend(loc="upper right")
 
     ax.set_xlabel(make_label(ds["time"], "time"))
     ax.set_ylabel(spatial_dim)
@@ -197,6 +226,7 @@ def plot_netcdf(
     show_metadata=False,
     reduce_mode="mean",
     output=None,
+    overlay_moments=False,
 ):
     path = Path(path)
 
@@ -237,6 +267,7 @@ def plot_netcdf(
                 da=da,
                 show_metadata=show_metadata,
                 output=output,
+                overlay_moments=overlay_moments,
             )
         else:
             raise ValueError(f"Unknown plot kind: {kind}")
@@ -292,6 +323,12 @@ def main():
         help="Optional output image path. If omitted, the plot is shown interactively.",
     )
 
+    parser.add_argument(
+        "--overlay-moments",
+        action="store_true",
+        help="For heat plots, overlay centroid ± spread if available.",
+    )
+
     args = parser.parse_args()
 
     plot_netcdf(
@@ -301,6 +338,7 @@ def main():
         show_metadata=args.metadata,
         reduce_mode=args.reduce,
         output=args.output,
+        overlay_moments=args.overlay_moments,
     )
 
 

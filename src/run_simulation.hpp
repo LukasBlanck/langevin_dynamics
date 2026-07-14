@@ -40,6 +40,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     std::vector<double> normalized_pot_e(n_save * N, 0.0); // might not be numerically reliable
     std::vector<double> normalized_kin_e(n_save * N, 0.0); // due to divisions with small numbers
     std::vector<double> first_moment_tot_e(n_save, 0.0);
+    std::vector<double> tot_energy_spread(n_save, 0.0);
 
     // pearson correlators
     std::vector<double> pj0(n_save * N, 0.0);
@@ -140,6 +141,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     normalized_energy(pot_e, normalized_pot_e, n_save, N);
 
     first_moment(normalized_tot_e, first_moment_tot_e, n_save, N);
+    spread(normalized_tot_e, tot_energy_spread, first_moment_tot_e, n_save, N);
 
     // process pearson
     std::vector<double> corr_p0(n_save * N, 0.0);
@@ -173,9 +175,13 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                                  "ensemble averaged normalized local potential energy",
                                  "dimensionless", normalized_pot_e);
 
+    // moments
     writer.write_time_data_array("first_moment_total_energy",
                                  "ensemble averaged first momentum of total energy",
                                  "site", first_moment_tot_e);
+    writer.write_time_data_array("total_energy_spread",
+                                 "ensemble averaged spread of total energy",
+                                 "site", tot_energy_spread);
 
     // pearson correlation
     writer.write_time_site_array("pearson_momentum_correlation",

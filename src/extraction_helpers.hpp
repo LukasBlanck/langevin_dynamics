@@ -95,6 +95,20 @@ inline void first_moment(const std::vector<double> &normalized_e,
     }
 }
 
+// sqrt(second moment), spread
+inline void spread(const std::vector<double> &normalized_e,
+                          std::vector<double> &spread, std::vector<double> &first_moments,
+                          int n_save, int N) {
+    std::vector<double> first_moments_squared(n_save);
+    for (int t = 0; t < n_save; t++) {
+        for (int j = 0; j < N; j++) {
+            first_moments_squared[t] += normalized_e[t * N + j] * static_cast<double>(j * j);
+        }
+        spread[t] =
+            std::sqrt(first_moments_squared[t] - (first_moments[t] * first_moments[t]));
+    }
+}
+
 // pearson correlators
 inline void pearson_correlators(std::vector<double> &pj0, std::vector<double> &pj,
                                 std::vector<double> &p0, std::vector<double> &pj2,

@@ -36,17 +36,31 @@ EXECUTABLE = Path("build/langevin_dynamics")
 POTENTIALS = ["FPU", "Josephson"]
 
 PLOT_VARIABLES = {
-    "local_total_energy": "local_total_energy",
-    "local_kinetic_energy": "local_kinetic_energy",
-    "local_potential_energy": "local_potential_energy",
-    # normalized spread data
-    "normalized_total_energy": "normalized_total_energy",
-    "normalized_kinetic_energy": "normalized_kinetic_energy",
-    "normalized_potential_energy": "normalized_potential_energy",
+    "local_total_energy": ["--variable", "local_total_energy"],
+    "local_kinetic_energy": ["--variable", "local_kinetic_energy"],
+    "local_potential_energy": ["--variable", "local_potential_energy"],
+    # normalized energies
+    "normalized_total_energy": ["--variable", "normalized_total_energy"],
+    "normalized_kinetic_energy": ["--variable", "normalized_kinetic_energy"],
+    "normalized_potential_energy": ["--variable", "normalized_potential_energy"],
+    # moments
+    "first_moment_total_energy": [
+        "--variable", "first_moment_total_energy",
+        "--kind", "line",
+    ],
+    "total_energy_spread": [
+        "--variable", "total_energy_spread",
+        "--kind", "line",
+    ],
+    "total_energy_centroid_spread": [
+        "--variable", "normalized_total_energy",
+        "--kind", "heat",
+        "--overlay-moments",
+    ],
     # pearson correlators
-    "pearson_bond": "pearson_bond_correlation",
-    "pearson_momentum": "pearson_momentum_correlation",
-    "pearson_position": "pearson_position_correlation",
+    "pearson_bond": ["--variable", "pearson_bond_correlation"],
+    "pearson_momentum": ["--variable", "pearson_momentum_correlation"],
+    "pearson_position": ["--variable", "pearson_position_correlation"],
 }
 
 
@@ -102,7 +116,7 @@ def make_plots(potential: str) -> None:
     output_dir = OUTPUT_ROOT / potential.lower()
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for output_name, variable in PLOT_VARIABLES.items():
+    for output_name, plot_args in PLOT_VARIABLES.items():
         output_file = output_dir / f"{output_name}.png"
 
         run_command(
@@ -111,8 +125,7 @@ def make_plots(potential: str) -> None:
                 str(PLOT_SCRIPT),
                 str(NC_FILE),
                 "--metadata",
-                "--variable",
-                variable,
+                *plot_args,
                 "-o",
                 str(output_file),
             ]
