@@ -11,16 +11,69 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # source directory
 set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-# netcdf
+# ---- begin netcdf
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(NETCDF REQUIRED IMPORTED_TARGET netcdf)
+pkg_check_modules(NETCDF_C QUIET IMPORTED_TARGET netcdf)
+pkg_check_modules(NETCDF_CXX QUIET IMPORTED_TARGET netcdf-cxx4)
+# netcdf c fallback
+if(NETCDF_C_FOUND)
+    message(STATUS "Found NetCDF C via pkg-config")
+    set(NETCDF_C_TARGET PkgConfig::NETCDF_C)
+else()
+    message(STATUS "NetCDF C not found via pkg-config; trying find_path/find_library")
 
-set(NETCDF_CXX_INCLUDE_DIR /opt/homebrew/opt/netcdf-cxx/include)
-set(NETCDF_CXX_LIBRARY /opt/homebrew/opt/netcdf-cxx/lib/libnetcdf-cxx4.dylib)
+    find_path(NETCDF_C_INCLUDE_DIR NAMES netcdf.h)
+    find_library(NETCDF_C_LIBRARY NAMES netcdf)
+
+    if(NOT NETCDF_C_INCLUDE_DIR OR NOT NETCDF_C_LIBRARY)
+        message(FATAL_ERROR "Could not find NetCDF C library.\n"
+            "Try loading a NetCDF module or setting CMAKE_PREFIX_PATH, e.g.\n"
+            "  cmake -S . -B build -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/netcdf"
+        )
+    else()
+        message(STATUS "NetCDF C found in ${NETCDF_C_INCLUDE_DIR} or ${NETCDF_C_LIBRARY}")
+    endif()
+
+    # create netcdf c target
+    add_library(NetCDF::C UNKNOWN IMPORTED)     # UNKNOWN: currently not important whether static or shared library was found
+    set_target_properties(NetCDF::C PROPERTIES
+        IMPORTED_LOCATION "${NETCDF_C_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${NETCDF_C_INCLUDE_DIR}"
+    )
+    set(NETCDF_C_TARGET NetCDF::C)
+endif()
+
+# netcdf cxx fallback
+if(NETCDF_CXX_FOUND)
+    message(STATUS "Found NetCDF C++ via pkg-config")
+    set(NETCDF_CXX_TARGET PkgConfig::NETCDF_CXX)
+else()
+    message(STATUS "NetCDF C++ not found via pkg-config; trying find_path/find_library")
+
+    find_path(NETCDF_CXX_INCLUDE_DIR NAMES netcdf)
+    find_library(NETCDF_CXX_LIBRARY NAMES netcdf-cxx4 netcdf_c++4)
+
+    if(NOT NETCDF_CXX_INCLUDE_DIR OR NOT NETCDF_CXX_LIBRARY)
+        message(FATAL_ERROR "Could not find NetCDF C++4 library.\n"
+            "Try loading a netcdf-cxx4 module or setting CMAKE_PREFIX_PATH, e.g.\n"
+            "  cmake -S . -B build -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/netcdf-cxx")
+    else()
+        message(STATUS "NetCDF C++ found in ${NETCDF_CXX_INCLUDE_DIR} or ${NETCDF_CXX_LIBRARY}")
+    endif()
+
+    # create netcdf cxx target
+    add_library(NetCDF::CXX UNKNOWN IMPORTED)   # UNKNOWN: currently not important whether static or shared library was found
+    set_target_properties(NetCDF::CXX PROPERTIES
+        IMPORTED_LOCATION "${NETCDF_CXX_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${NETCDF_CXX_INCLUDE_DIR}"
+    )
+    set(NETCDF_CXX_TARGET NetCDF::CXX)
+endif()
+# ---- end netcdf
 
 
 # core library used by both: langevin_dynamics and langevin_tests
-add_library(langevin_core STATIC        # core executable
+add_library(langevin_core STATIC        # core library
     ${SOURCE_DIR}/input/input.cpp
 )
 
@@ -28,14 +81,13 @@ add_library(langevin_core STATIC        # core executable
 target_include_directories(langevin_core    
     PUBLIC
         ${SOURCE_DIR}
-        ${NETCDF_CXX_INCLUDE_DIR}
 )
 
 # linking netcdf to core
 target_link_libraries(langevin_core
     PUBLIC
-        PkgConfig::NETCDF
-        ${NETCDF_CXX_LIBRARY}
+        ${NETCDF_CXX_TARGET}
+        ${NETCDF_C_TARGET}
 )
 
 # compilation warnings
@@ -59,7 +111,7 @@ option(BUILD_TESTING "Build tests" OFF)
 if (BUILD_TESTING)
     include(CTest)
 
-    file(GLOB TEST_SOURCES CONFIGURE DEPENDS
+    file(GLOB TEST_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp)
     if(TEST_SOURCES)
         include(FetchContent)
