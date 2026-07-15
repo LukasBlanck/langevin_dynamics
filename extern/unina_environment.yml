@@ -1,0 +1,10 @@
+name: langevin_dynamics
+
+channels:
+  - conda-forge
+
+dependencies:
+  - cmake>=3.20
+  - pkg-config
+  - libnetcdf=*=nompi_*
+  - netcdf-cxx4=*=nompi_*
