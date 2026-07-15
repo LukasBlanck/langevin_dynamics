@@ -1,7 +1,11 @@
 .DS_Store
 
 build
+build-gpu
+build-cpu
+
 .cache
 results/raw
+results/processed
 
 .venv
