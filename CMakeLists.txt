@@ -4,6 +4,7 @@ project(langevin_dynamics LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)       # for portability: strict C++20
 
 # for clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -90,7 +91,7 @@ target_link_libraries(langevin_core
         ${NETCDF_C_TARGET}
 )
 
-# compilation warnings
+# compilation warnings for core
 target_compile_options(langevin_core PRIVATE
     -Wall
     -Wextra
@@ -98,17 +99,62 @@ target_compile_options(langevin_core PRIVATE
 )
 
 # ----------- create executables ----------
-add_executable(langevin_dynamics
-    ${SOURCE_DIR}/main.cpp)
+option(BUILD_GPU "Build the GPU backend" OFF)
+# GPU build
+if(BUILD_GPU)
+    include(CheckLanguage)
+    check_language(CUDA)
 
-target_link_libraries(langevin_dynamics
+    if(NOT CMAKE_CUDA_COMPILER)
+        message(FATAL_ERROR "BUILD_GPU=ON, but no CUDA compiler was found.\n"
+            "Configure with, for example:\n"
+            "  -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc")
+    endif()
+
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+    add_executable(langevin_dynamics
+        ${SOURCE_DIR}/main.cpp
+        ${SOURCE_DIR}/GPU/initial.cu
+    )
+    target_compile_definitions(langevin_dynamics    # transfer macro to compile instructions
+        PRIVATE
+            LANGEVIN_COMPILE_FOR_GPU)
+
+    target_link_libraries(langevin_dynamics
+        PRIVATE
+            langevin_core
+            CUDA::cudart)
+
+    set_target_properties(langevin_dynamics PROPERTIES
+        CUDA_STANDARD 20
+        CUDA_STANDARD_REQUIRED ON
+        CUDA_EXTENSIONS OFF)
+
+else()  
+    # CPU only build
+    add_executable(langevin_dynamics
+        ${SOURCE_DIR}/main.cpp)
+
+    target_link_libraries(langevin_dynamics
+        PRIVATE
+            langevin_core)
+endif()
+
+# compilation warnings for C++
+target_compile_options(langevin_dynamics
     PRIVATE
-        langevin_core)
+        $<$<COMPILE_LANGUAGE:CXX>:
+            -Wall
+            -Wextra
+            -Wpedantic
+        >
+)
 
 # test executable
 option(BUILD_TESTING "Build tests" OFF)
 
-if (BUILD_TESTING)
+if (BUILD_TESTING AND NOT BUILD_GPU)
     include(CTest)
 
     file(GLOB TEST_SOURCES CONFIGURE_DEPENDS
