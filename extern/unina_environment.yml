@@ -8,3 +8,6 @@ dependencies:
   - pkg-config
   - libnetcdf=*=nompi_*
   - netcdf-cxx4=*=nompi_*
+  - gcc_linux-64=12             # gcc 12. is supported by CUDA Toolkit 12.2
+  - gxx_linux-64=12
+
