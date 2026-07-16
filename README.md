@@ -203,19 +203,37 @@ For $T=0 $ and $\lambda =0$ (only Quartic Potential) global energy conservation 
 
 ## Compile
 
-```
-cmake -S . -B build
-cmake --build build
+### CPU
 
-./build/langevin_dynamics
+```
+cmake -S . -B build-cpu
+cmake --build build-cpu
+
+./build-cpu/langevin_dynamics
+```
+
+### GPU
+
+On the UNINA cluster, CMake always chooses the only cluster wide available C++ compiler as host compiler for nvcc, which is GNU 4.8.5 from 2015. This is too old and unnecessary as the micromamba environment provides a modern C++ compiler (g++ 12.4.). Therfore before configuring the build, export the `CUDAHOSTCXX` variable into the environment with 
+
+```
+export CUDAHOSTCXX="$CONDA_PREFIX/bin/x86_64-conda-linux-gnu-g++"
+```
+Then, run:
+
+```
+cmake -S . -B build-gpu -DBUILD_GPU=ON
+cmake --build build-gpu
+
+./build-gpu/langevin_dynamics
 ```
 
 ## Plot
 
 ```
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r extern/requirements.txt
 ```
 
 The generic plotting file is provided with 
@@ -229,7 +247,8 @@ python scripts/plot.py <path> -h              // provides help
 ```
 
 #### Automated Script
-To run the simulation for FPU and Josephson potential and save the plots (energy heatmap and pearson correlations), execute
+To run the simulation for FPU and Josephson potential and save the plots (energy heatmaps and pearson correlations), execute
+
 ```
 python scripts/run.py
 ``` 
@@ -238,6 +257,7 @@ python scripts/run.py
 ## Tests
 
 To run tests, execute:
+
 ```
 cmake -S . -B build -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_TESTING=ON
 cmake --build build
@@ -246,4 +266,31 @@ ctest --test-dir build --output-on-failure
 
 ```
 
+## UNINA Cluster
+
+Micromamba is provided under `~/.local/bin/micromamba`. The lightweight micromamba environment is called **`langevin_dynamics`**.
+
+Inspect content with
+
+```
+micromamba list -n langevin_dynamics
+```
+
+To update according to .yml, run:
+
+```
+micromamba env update -n langevin_dynamics -f extern/unina_environment.yml
+```
+
+If you want to re-create the environment:
+
+```
+micromamba create -f extern/unina_environment.yml
+```
+
+To acivate the environment:
+
+```
+micromamba activate langevin_dynamics
+```
 
