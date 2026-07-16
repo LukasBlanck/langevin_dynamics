@@ -25,6 +25,10 @@ echo "GPU information:"
 nvidia-smi
 
 echo
+echo "CPU information:"
+lscpu
+
+echo
 echo "Running langevin_dynamics..."
 srun ./build-gpu/langevin_dynamics
 
