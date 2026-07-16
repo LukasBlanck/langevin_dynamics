@@ -1,0 +1,41 @@
+#!/bin/bash
+#SBATCH --partition=gpus
+#SBATCH --nodes=1
+#SBATCH --gres=gpu:1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --time=00:05:00
+#SBATCH --job-name=langevin_dynamics
+#SBATCH --output=langevin_out-%j.out
+
+set -euo pipefail
+
+echo "Job ID:        $SLURM_JOB_ID"
+echo "Host:          $(hostname)"
+echo "Working dir:   $(pwd)"
+echo "Start time:    $(date)"
+echo "--------------------------------------------------"
+
+echo
+echo "Compiler:"
+nvcc --version
+
+echo
+echo "GPU information:"
+nvidia-smi
+
+echo
+echo "Running langevin_dynamics..."
+srun ./build-gpu/langevin_dynamics
+
+run_status=$?
+
+if [[ $run_status -ne 0 ]]; then
+    echo "Program failed with status $run_status."
+    exit $run_status
+fi
+
+echo "Program completed successfully."
+echo "End time: $(date)"
+
+
