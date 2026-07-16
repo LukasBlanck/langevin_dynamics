@@ -4,6 +4,9 @@ build
 build-gpu
 build-cpu
 
+# for local clangd configurations
+.clangd
+
 .cache
 results/raw
 results/processed
