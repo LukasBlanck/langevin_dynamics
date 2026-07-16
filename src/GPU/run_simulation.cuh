@@ -3,9 +3,10 @@
 
 #include "../input/input.hpp"
 #include "GPU/cuda_check.hpp"
-#include <__clang_cuda_runtime_wrapper.h>
+#include "GPU/kernels/integration.cuh"
 #include <cstddef>
 #include <vector>
+#include <iostream>
 
 #include <cuda_runtime.h>
 
@@ -99,9 +100,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     double *d_p = nullptr;
     double *d_q = nullptr;
 
-    CUDA_CHECK(CUDA_MALLOC(reinterpret_cast<void **>(&d_q),
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q),
                            static_cast<std::size_t>(N) * batch_size * sizeof(double)));
-    CUDA_CHECK(CUDA_MALLOC(reinterpret_cast<void **>(&d_p),
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_p),
                            static_cast<std::size_t>(N) * batch_size * sizeof(double)));
 
     // Allocate final device observables:
