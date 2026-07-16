@@ -27,11 +27,11 @@ except ModuleNotFoundError:
 
 INPUT_TOML = Path("src/input/input.toml")
 PLOT_SCRIPT = Path("scripts/plot.py")
-NC_FILE = Path("results/raw/local_energy.nc")
+NC_FILE = Path("results/raw/CPU/local_energy.nc")   # results/raw/GPU/local_energy.nc
 OUTPUT_ROOT = Path("results/processed")
 
-BUILD_DIR = Path("build")
-EXECUTABLE = Path("build/langevin_dynamics")
+BUILD_DIR = Path("build-cpu")   # build-gpu
+EXECUTABLE = Path("build-cpu/langevin_dynamics")    # build-gpu/langevin_dynamics
 
 POTENTIALS = ["FPU", "Josephson"]
 

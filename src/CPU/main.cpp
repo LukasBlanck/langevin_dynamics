@@ -10,7 +10,7 @@ int main() {
         print_config(config);
 
         // create output_path for results
-        const std::string output_path = "results/raw/local_energy.nc";
+        const std::string output_path = "results/raw/CPU/local_energy.nc";
 
         // choose potential and run simulation
         if (config.model.potential == "FPU") {
