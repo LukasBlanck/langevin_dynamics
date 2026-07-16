@@ -1,6 +1,6 @@
 #pragma once
 
-#include "input/input.hpp"
+#include "../input/input.hpp"
 
 #include <netcdf>
 #include <stdexcept>

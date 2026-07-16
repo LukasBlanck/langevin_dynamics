@@ -2,7 +2,6 @@
 #pragma once
 
 #include <cmath>
-#include <functional>
 #include <stdexcept>
 #include <vector>
 

@@ -4,8 +4,8 @@
 
 #include "BAOAB.hpp"
 #include "extraction_helpers.hpp"
-#include "input/input.hpp"
-#include "io/netCDF_writer.hpp"
+#include "../input/input.hpp"
+#include "../io/netCDF_writer.hpp"
 #include <cassert>
 #include <filesystem>
 #include <stdexcept>

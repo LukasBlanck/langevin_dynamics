@@ -114,8 +114,7 @@ if(BUILD_GPU)
     enable_language(CUDA)
     find_package(CUDAToolkit REQUIRED)
     add_executable(langevin_dynamics
-        ${SOURCE_DIR}/main.cpp
-        ${SOURCE_DIR}/GPU/initial.cu
+        ${SOURCE_DIR}/GPU/main.cu
     )
     target_compile_definitions(langevin_dynamics    # transfer macro to compile instructions
         PRIVATE
@@ -134,7 +133,7 @@ if(BUILD_GPU)
 else()  
     # CPU only build
     add_executable(langevin_dynamics
-        ${SOURCE_DIR}/main.cpp)
+        ${SOURCE_DIR}/CPU/main.cpp)
 
     target_link_libraries(langevin_dynamics
         PRIVATE

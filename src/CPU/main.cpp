@@ -1,4 +1,4 @@
-#include "potentials.hpp"
+#include "../potentials.hpp"
 #include "run_simulation.hpp"
 #include <stdexcept>
 

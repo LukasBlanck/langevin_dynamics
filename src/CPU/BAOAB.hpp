@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "input/input.hpp"
+#include "../input/input.hpp"
 #include <cmath>
 #include <algorithm>
 #include <random>
