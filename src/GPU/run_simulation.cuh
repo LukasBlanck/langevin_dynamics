@@ -48,7 +48,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     // saving helpers
     const int n_save = 1 + (N_time + save_every - 1) / save_every;
-    std::vector<double> e(n_save * N, 0.0);
+    std::vector<double> tot_e(n_save * N, 0.0);
     std::vector<double> time(n_save, 0.0);
     std::vector<double> kin_e(n_save * N, 0.0);
     std::vector<double> pot_e(n_save * N, 0.0);
@@ -107,7 +107,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     double *d_tot_e = nullptr;
 
     const std::size_t shared_bytes = static_cast<std::size_t>(N) * sizeof(double);
-    const std::size_t reduction_shared_bytes = static_cast<std::size_t>(threads_per_block) * sizeof(double);
+    const std::size_t reduction_shared_bytes =
+        static_cast<std::size_t>(threads_per_block) * sizeof(double);
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q),
                           static_cast<std::size_t>(N) * batch_size * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_p),
@@ -134,8 +135,6 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         // Initialize q, p, F and RNG for this batch.
         CUDA_CHECK(cudaMemset(d_q, 0, static_cast<std::size_t>(N) * batch_size * sizeof(double)));
         CUDA_CHECK(cudaMemset(d_p, 0, static_cast<std::size_t>(N) * batch_size * sizeof(double)));
-        CUDA_CHECK(cudaMemset(d_tot_e_temporary, 0,
-                              static_cast<std::size_t>(N) * batch_size * sizeof(double)));
 
         int completed_steps = 0;
         int n_save_index = 0;
@@ -147,7 +146,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         CUDA_CHECK(cudaDeviceSynchronize());
 
         // launch N blocks - one block is one site
-        perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(d_tot_e_temporary, d_tot_e, current_batch_size, N, n_save_index);
+        perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
+            d_tot_e_temporary, d_tot_e, current_batch_size, N, n_save_index);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         ++n_save_index;
@@ -169,7 +169,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
             CUDA_CHECK(cudaDeviceSynchronize());
 
             // launch N blocks - one block is one site
-            perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(d_tot_e_temporary, d_tot_e, current_batch_size, N, n_save_index);
+            perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
+                d_tot_e_temporary, d_tot_e, current_batch_size, N, n_save_index);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -179,7 +180,40 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     }
 
     // Copy reduced [n_save, N] arrays to CPU.
+    CUDA_CHECK(cudaMemcpy(tot_e.data(), d_tot_e,
+                          static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+
+    // free GPU
+    CUDA_CHECK(cudaFree(d_tot_e));
+    CUDA_CHECK(cudaFree(d_tot_e_temporary));
+    CUDA_CHECK(cudaFree(d_p));
+    CUDA_CHECK(cudaFree(d_q));
+
     // Normalize by N_ensemble.
+    for (double &value : tot_e) {
+        value /= static_cast<double>(N_ensemble);
+    }
+
     // Compute derived observables.
+
+    // for now compute time on host
+    for (int save_index = 1; save_index < n_save; ++save_index) {
+        const int completed = std::min(save_index * save_every, N_time);
+
+        time[save_index] = completed * dt;
+    }
+
     // write results (helper arrays) to .nc file
+    std::filesystem::create_directories(std::filesystem::path(output_path).parent_path());
+    NetCDFWriter writer(output_path, config, n_save, N, dt);
+
+    writer.write_time(time);
+    // energy observables
+    writer.write_time_site_array("local_total_energy", "ensemble averaged local total energy",
+                                 "energy", tot_e);
+
+    // simulation finished
+    std::cout << "Finished simulation.\n";
+    std::cout << "Output written to: " << output_path << "\n";
 }
