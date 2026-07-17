@@ -12,3 +12,6 @@ results/raw
 results/processed
 
 .venv
+
+# cluster out
+langevin_out-*.out
