@@ -96,7 +96,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     // device constants
     const int batch_size = 256;
-    constexpr int threads_per_block = 256;
+    constexpr int threads_per_block = 256;  // TODO: test for 128 and 512 and correspondant runtim
     static_assert(threads_per_block > 0 && (threads_per_block & (threads_per_block - 1)) == 0,
                   "threads_per_block must be a power of two ! ()");
 
