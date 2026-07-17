@@ -3,6 +3,7 @@
 
 #include "../input/input.hpp"
 #include "GPU/cuda_check.hpp"
+#include "GPU/kernels/extraction.cuh"
 #include "GPU/kernels/integration.cuh"
 #include <cstddef>
 #include <vector>
@@ -99,10 +100,13 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // device pointers
     double *d_p = nullptr;
     double *d_q = nullptr;
+    double *d_tot_e = nullptr;
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q),
                            static_cast<std::size_t>(N) * batch_size * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_p),
+                           static_cast<std::size_t>(N) * batch_size * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e),
                            static_cast<std::size_t>(N) * batch_size * sizeof(double)));
 
     // Allocate final device observables:
@@ -120,6 +124,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         // Initialize q, p, F and RNG for this batch.
         CUDA_CHECK(cudaMemset(d_q, 0, static_cast<std::size_t>(N) * batch_size * sizeof(double)));
         CUDA_CHECK(cudaMemset(d_p, 0, static_cast<std::size_t>(N) * batch_size * sizeof(double)));
+        CUDA_CHECK(cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * batch_size * sizeof(double)));
 
         int completed_steps = 0;
         int n_save_index = 0;
@@ -143,7 +148,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
 
-            // extract_observables(current_batch_size, threads_per_block, N);
+            extract_observables(d_p, d_q, d_tot_e, potential, current_batch_size,  N,  m,  int n_save_index);
             // reduction(current_batch_size, N, n_save_index);
 
             completed_steps += steps_this_interval;
