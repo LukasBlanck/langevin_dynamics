@@ -43,7 +43,7 @@ __device__ inline double normal(unsigned long long seed, unsigned long long ense
 
 template <class Potential>
 __global__ void integrate(double *p, double *q, Potential potential, int current_batch_size, int N,
-                          int number_of_steps, int global_step_begin, unsigned long long seed,
+                          int steps_this_interval, int completed_steps, unsigned long long seed,
                           double m, double eta, double c, int batch_begin, double dt) {
 
     // Initialize one seed per trajectory (like in CPU version)
@@ -58,7 +58,7 @@ __global__ void integrate(double *p, double *q, Potential potential, int current
     // block shared q
     extern __shared__ double shared_q[]; // shared per block
 
-    for (int step = 0; step < number_of_steps; ++step) {
+    for (int step = 0; step < steps_this_interval; ++step) {
 
         for (int site = threadIdx.x; site < N; site += blockDim.x) {
             const std::size_t batch_index = static_cast<std::size_t>(trajectory) * N + site;
@@ -88,7 +88,7 @@ __global__ void integrate(double *p, double *q, Potential potential, int current
         for (int site = threadIdx.x; site < N; site += blockDim.x) {
             if (site == 0) {
                 const unsigned long long global_step =
-                    static_cast<unsigned long long>(global_step_begin + step);
+                    static_cast<unsigned long long>(completed_steps + step);
 
                 const double Z = normal(seed, ensemble_id, global_step,
                                         0ULL // left bath
