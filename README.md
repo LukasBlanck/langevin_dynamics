@@ -294,3 +294,128 @@ To acivate the environment:
 micromamba activate langevin_dynamics
 ```
 
+## Memory bottlenecks
+
+### of the GPU implementation
+
+#### Block `__shared__` memory
+
+Scales with
+
+$$
+\propto 8 \cdot N \quad \text{Bytes}
+$$
+
+I.e.:
+
+```
+N = 1,000  → 8 KB per block
+N = 4,000  → 32 KB per block
+N = 6,000  → 48 KB per block
+N = 8,000  → 64 KB per block
+```
+
+Concretely for the `Tesla V100-SXM2-32GB`:
+
+Theoretically 96KB, but practically (source: CUDA): 48 KiB. So this alone requires:
+
+```
+N < 6144
+```
+
+Practically, we can assume
+
+```
+shared per block     theoretical blocks per SM from shared memory alone
+8 KiB                up to 12
+16 KiB               up to 6
+24 KiB               up to 4
+32 KiB               up to 3
+48 KiB               up to 2
+>48 KiB              usually 1
+```
+
+>TODO: Test sensitivity on runtime (Block parallelism) for N>1000.
+
+
+#### Global GPU memory
+
+>**Is completely independent of `N_ensemble`.** The runtime of course not, but GPU memory is.
+
+On GPU:
+
+```
+d_q                   [batch_size, N]
+d_p                   [batch_size, N]
+d_tot_e_temporary     [batch_size, N]
+d_tot_e               [n_save, N]
+```
+
+So total GPU memory can be estimated with 8*
+
+$$
+\approx 2 \cdot [\text{batch-size} \cdot N] + \text{obs-arrays}  \cdot [\text{batch-size} \cdot N] +  \text{obs-arrays}  \cdot [\text{n-save} \cdot N]
+$$
+
+The CPU currently implements ~20 obs-arrays (=arrays for observables). This would mean 8*
+
+$$
+\boxed{
+\approx 2 \cdot [\text{batch-size} \cdot N] + 20 \cdot ([\text{batch-size} \cdot N] +   [\text{n-save} \cdot N])
+}
+$$
+
+or
+
+$$
+\boxed{
+\boxed{
+M_{\mathrm{GPU}}
+\approx
+8N \cdot \left[
+2\cdot \text{batch-size}+20\cdot \text{batch-size}+20\cdot \text{n-save}
+\right]\ \text{bytes}
+}
+}
+$$
+
+Standard vals:
+
+$$
+M_{\mathrm{GPU}} \approx 8 * 128 * [2 * 256 + 20 * (256 + 1000)] \approx 26 \text{MB} << 32GB
+$$
+
+ ---
+
+##### n_save
+
+Is determined with
+
+```cpp
+n_save = 1 + (N_time + save_every - 1) / save_every;
+```
+
+So we therefore need
+
+$$
+\boxed{
+\lim_{N_t \to \infty} \frac{\text{N}_t+ \text{save-every}}{\text{save-every}} \approx 1000
+}
+$$
+
+1000 in order to visually have a fine enough time resolution and at the same time a bounded memory demand.
+
+>TODO: Remove user chosen save_every field and let the solver pick save_every dependent on $N_t$ to ensure bounded memory demand.
+
+---
+
+##### batch_size
+
+The `batch_size` should be chosen small enough to keep global memory small enough and big enough to minimize kernel launch overhead and keep the GPU (SM) occupied with sufficient block-level parallelism. Let`s say 256 < batch_size < ?1024.
+
+>TODO: Test for optimal `batch_size`.
+
+The optimum will depend on how many trajectory blocks can reside on each SM, which depends strongly on N, shared memory, and register use.
+
+>TODO: Test for optimal `threads_per_block`. Must be multiple of 32. Maybe perform_reduction should use a different threads_per_block setting since it is more dependent on current_batch_size, then N.
+
