@@ -42,9 +42,11 @@ __device__ inline double normal(unsigned long long seed, unsigned long long ense
 }
 
 template <class Potential>
-__global__ void integrate(double *p, double *q, Potential potential, int current_batch_size, int N,
-                          int steps_this_interval, int completed_steps, unsigned long long seed,
-                          double m, double eta, double c, int batch_begin, double dt) {
+__global__ void integrate(double *p, double *q, const Potential potential,
+                          const int current_batch_size, const int N, const int steps_this_interval,
+                          const int completed_steps, unsigned long long seed, const double m,
+                          const double eta, const double c, const int batch_begin,
+                          const double dt) {
 
     // Initialize one seed per trajectory (like in CPU version)
     const int trajectory = blockIdx.x;
