@@ -5,10 +5,12 @@
 #include "GPU/cuda_check.hpp"
 #include "GPU/kernels/extraction.cuh"
 #include "GPU/kernels/integration.cuh"
+#include "GPU/kernels/reduction.cuh"
 #include <cstddef>
 #include <iostream>
 #include <vector>
 
+#include <__clang_cuda_builtin_vars.h>
 #include <cuda_runtime.h>
 
 // layout:
@@ -93,27 +95,34 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     // device constants
     const int batch_size = 256;
-    const int threads_per_block = 256;
+    constexpr int threads_per_block = 256;
+    static_assert(threads_per_block > 0 && (threads_per_block & (threads_per_block - 1)) == 0,
+                  "threads_per_block must be a power of two ! ()");
 
     const int number_of_batches = (batch_size + N_ensemble - 1) / batch_size;
 
     // device pointers
     double *d_p = nullptr;
     double *d_q = nullptr;
+    double *d_tot_e_temporary = nullptr;
     double *d_tot_e = nullptr;
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q),
                           static_cast<std::size_t>(N) * batch_size * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_p),
                           static_cast<std::size_t>(N) * batch_size * sizeof(double)));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e),
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e_temporary),
                           static_cast<std::size_t>(N) * batch_size * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
     // Allocate final device observables:
     // [n_save, N]
 
     // Allocate reusable temporary observables:
     // [max_batch_size, N]
+
+    CUDA_CHECK(cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
     for (int batch = 0; batch < number_of_batches; ++batch) {
 
@@ -124,16 +133,23 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         // Initialize q, p, F and RNG for this batch.
         CUDA_CHECK(cudaMemset(d_q, 0, static_cast<std::size_t>(N) * batch_size * sizeof(double)));
         CUDA_CHECK(cudaMemset(d_p, 0, static_cast<std::size_t>(N) * batch_size * sizeof(double)));
-        CUDA_CHECK(
-            cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * batch_size * sizeof(double)));
+        CUDA_CHECK(cudaMemset(d_tot_e_temporary, 0,
+                              static_cast<std::size_t>(N) * batch_size * sizeof(double)));
 
         int completed_steps = 0;
         int n_save_index = 0;
 
         // initial measurement at t = 0.
-        // extract_observables(current_batch_size, threads_per_block,
-        //                     N); // first reduction, then extract?? better HPC?
-        // reduction(current_batch_size, N, n_save_index);
+        extract_observables<Potential><<<current_batch_size, threads_per_block, shared_bytes>>>(
+            d_p, d_q, d_tot_e_temporary, potential, current_batch_size, N, m);
+        CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
+
+        // launch N blocks - one block is one site
+        perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
+            d_tot_e_temporary, d_tot_e, potential, current_batch_size, N, m, n_save_index);
+        CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
         ++n_save_index;
 
         while (completed_steps < N_time) { // regular reduction also in time resolution
@@ -142,6 +158,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                 std::min(save_every, N_time - completed_steps); // might be less at end
 
             const std::size_t shared_bytes = static_cast<std::size_t>(N) * sizeof(double);
+            const std::size_t reduction_shared_bytes =
+                static_cast<std::size_t>(threads_per_block) * sizeof(double);
 
             integrate<Potential><<<current_batch_size, threads_per_block, shared_bytes>>>(
                 d_p, d_q, potential, current_batch_size, N, steps_this_interval, completed_steps,
@@ -150,12 +168,15 @@ inline void run_simulation(const Config &config, const std::string &output_path)
             CUDA_CHECK(cudaDeviceSynchronize());
 
             extract_observables<Potential><<<current_batch_size, threads_per_block, shared_bytes>>>(
-                d_p, d_q, d_tot_e, potential, current_batch_size, N, m);
-
+                d_p, d_q, d_tot_e_temporary, potential, current_batch_size, N, m);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
-            
-            // reduction(current_batch_size, N, n_save_index);
+
+            // launch N blocks - one block is one site
+            perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
+                d_tot_e_temporary, d_tot_e, potential, current_batch_size, N, m, n_save_index);
+            CUDA_CHECK(cudaGetLastError());
+            CUDA_CHECK(cudaDeviceSynchronize());
 
             completed_steps += steps_this_interval;
             ++n_save_index;

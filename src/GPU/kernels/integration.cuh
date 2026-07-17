@@ -3,7 +3,7 @@
 // not the final integration time but the current n_save_index
 
 // the position array q should be block memory __shared__
-// for the force calculation
+// for the force calculation for faster access at neighbouring q vals
 
 #include <cstddef>
 
@@ -57,7 +57,7 @@ __global__ void integrate(double *p, double *q, const Potential potential,
     const unsigned long long ensemble_id =
         static_cast<unsigned long long>(batch_begin + trajectory);
 
-    // block shared q
+    // block shared q for fast access within block
     extern __shared__ double shared_q[]; // shared per block
 
     for (int step = 0; step < steps_this_interval; ++step) {
