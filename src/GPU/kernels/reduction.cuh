@@ -10,13 +10,11 @@
 
 #pragma once
 
-#include <__clang_cuda_builtin_vars.h>
 #include <cuda_runtime.h>
 
-template <class Potential>
 __global__ inline void perform_reduction(double *tot_e_temporary, double *tot_e,
                                          const int current_batch_size, const int N,
-                                         const int n_save_index) {
+                                          const int n_save_index) {
 
     // tot_e_temporary has size [batch_size * N]
     // tot_e has size [n_save * N]

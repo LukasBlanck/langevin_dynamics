@@ -10,7 +10,6 @@
 #include <iostream>
 #include <vector>
 
-#include <__clang_cuda_builtin_vars.h>
 #include <cuda_runtime.h>
 
 // layout:
@@ -107,6 +106,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     double *d_tot_e_temporary = nullptr;
     double *d_tot_e = nullptr;
 
+    const std::size_t shared_bytes = static_cast<std::size_t>(N) * sizeof(double);
+    const std::size_t reduction_shared_bytes = static_cast<std::size_t>(threads_per_block) * sizeof(double);
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q),
                           static_cast<std::size_t>(N) * batch_size * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_p),
@@ -146,8 +147,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         CUDA_CHECK(cudaDeviceSynchronize());
 
         // launch N blocks - one block is one site
-        perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
-            d_tot_e_temporary, d_tot_e, potential, current_batch_size, N, m, n_save_index);
+        perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(d_tot_e_temporary, d_tot_e, current_batch_size, N, n_save_index);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         ++n_save_index;
@@ -156,10 +156,6 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
             const int steps_this_interval =
                 std::min(save_every, N_time - completed_steps); // might be less at end
-
-            const std::size_t shared_bytes = static_cast<std::size_t>(N) * sizeof(double);
-            const std::size_t reduction_shared_bytes =
-                static_cast<std::size_t>(threads_per_block) * sizeof(double);
 
             integrate<Potential><<<current_batch_size, threads_per_block, shared_bytes>>>(
                 d_p, d_q, potential, current_batch_size, N, steps_this_interval, completed_steps,
@@ -173,8 +169,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
             CUDA_CHECK(cudaDeviceSynchronize());
 
             // launch N blocks - one block is one site
-            perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
-                d_tot_e_temporary, d_tot_e, potential, current_batch_size, N, m, n_save_index);
+            perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(d_tot_e_temporary, d_tot_e, current_batch_size, N, n_save_index);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
 
