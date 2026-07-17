@@ -6,9 +6,11 @@
 #include "GPU/kernels/extraction.cuh"
 #include "GPU/kernels/integration.cuh"
 #include "GPU/kernels/reduction.cuh"
+#include "io/netCDF_writer.hpp"
 #include <cstddef>
 #include <iostream>
 #include <vector>
+#include <filesystem>
 
 #include <cuda_runtime.h>
 
