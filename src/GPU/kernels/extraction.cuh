@@ -31,9 +31,9 @@ __device__ inline void symmetric_energy_at_site(double *tot_e, const double *sha
 }
 
 template <class Potential>
-__global__ inline void extract_observables(double *p, double *q, double *tot_e,
-                                           const Potential &potential, const int current_batch_size,
-                                           const int N, const double m, const int n_save_index) {
+__global__ inline void extract_observables(double *p, double *q, double *tot_e, Potential potential,
+                                           const int current_batch_size, const int N,
+                                           const double m) {
 
     const int trajectory = blockIdx.x;
     if (trajectory >= current_batch_size) {
