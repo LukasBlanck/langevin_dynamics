@@ -148,7 +148,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
 
-            extract_observables(d_p, d_q, d_tot_e, potential, current_batch_size,  N,  m,  int n_save_index);
+            extract_observables<Potential><<<current_batch_size, threads_per_block, shared_bytes>>>(d_p, d_q, d_tot_e, potential, current_batch_size,  N,  m, n_save_index);
             // reduction(current_batch_size, N, n_save_index);
 
             completed_steps += steps_this_interval;
