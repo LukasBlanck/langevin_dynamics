@@ -7,6 +7,7 @@
 #include "GPU/kernels/integration.cuh"
 #include "GPU/kernels/reduction.cuh"
 #include "GPU/kernels/rng.cuh"
+#include "process/helpers.hpp"
 #include "io/netCDF_writer.hpp"
 #include <cstddef>
 #include <filesystem>
@@ -122,7 +123,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     // bytes of shared memory on block
     const std::size_t shared_bytes = static_cast<std::size_t>(N) * sizeof(double);
-    const int num_of_observables = 3;	// in the simplest form this is really the number of observables, but with later HPC improvements the number can be smaller then the number of observables
+    const int num_of_observables =
+        3; // in the simplest form this is really the number of observables, but with later HPC
+           // improvements the number can be smaller then the number of observables
     const std::size_t reduction_shared_bytes =
         static_cast<std::size_t>(threads_per_block) * num_of_observables * sizeof(double);
 
@@ -253,6 +256,14 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     // Compute derived observables.
 
+    // process weighted energies
+    normalized_energy(e, normalized_tot_e, n_save, N);
+    normalized_energy(kin_e, normalized_kin_e, n_save, N);
+    normalized_energy(pot_e, normalized_pot_e, n_save, N);
+
+    first_moment(normalized_tot_e, first_moment_tot_e, n_save, N);
+    spread(normalized_tot_e, tot_energy_spread, first_moment_tot_e, n_save, N);
+
     // for now compute time on host
     for (int save_index = 1; save_index < n_save; ++save_index) {
         const int completed = std::min(save_index * save_every, N_time);
@@ -272,6 +283,24 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                                  "ensemble averaged local potential energy", "energy", pot_e);
     writer.write_time_site_array("local_kinetic_energy", "ensemble averaged local kinetic energy",
                                  "energy", kin_e);
+
+    // weighted energies
+    writer.write_time_site_array("normalized_total_energy",
+                                 "ensemble averaged normalized local total energy", "dimensionless",
+                                 normalized_tot_e);
+    writer.write_time_site_array("normalized_kinetic_energy",
+                                 "ensemble averaged normalized local kinetic energy",
+                                 "dimensionless", normalized_kin_e);
+    writer.write_time_site_array("normalized_potential_energy",
+                                 "ensemble averaged normalized local potential energy",
+                                 "dimensionless", normalized_pot_e);
+
+    // moments
+    writer.write_time_data_array("first_moment_total_energy",
+                                 "ensemble averaged first momentum of total energy", "site",
+                                 first_moment_tot_e);
+    writer.write_time_data_array("total_energy_spread", "ensemble averaged spread of total energy",
+                                 "site", tot_energy_spread);
 
     // simulation finished
     std::cout << "Finished simulation.\n";
