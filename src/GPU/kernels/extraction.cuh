@@ -51,7 +51,6 @@ __device__ inline void potential_energy_at_site(double *pot_e, const double *sha
     }
 }
 
-template <class Potential>
 __device__ inline void kinetic_energy_at_site(double *kin_e, const double *p, const int N,
                                               const double m, const int trajectory,
                                               const int site) {
@@ -103,7 +102,7 @@ __global__ inline void extract_observables(double *p, double *q, double *tot_e, 
     }
 
     for (int site = threadIdx.x; site < N; site += blockDim.x) {
-        kinetic_energy_at_site(kin_e, N, m, trajectory, site);
+        kinetic_energy_at_site(kin_e, p, N, m, trajectory, site);
     }
 
     // TODO: HPC: comput potential then kinetic, then just sum for total

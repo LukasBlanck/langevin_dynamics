@@ -122,8 +122,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     // bytes of shared memory on block
     const std::size_t shared_bytes = static_cast<std::size_t>(N) * sizeof(double);
+    const int num_of_observables = 3;	// in the simplest form this is really the number of observables, but with later HPC improvements the number can be smaller then the number of observables
     const std::size_t reduction_shared_bytes =
-        static_cast<std::size_t>(threads_per_block) * sizeof(double);
+        static_cast<std::size_t>(threads_per_block) * num_of_observables * sizeof(double);
 
     // "temporary" q and p arrays [batch_size * N]
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q),
