@@ -257,7 +257,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // Compute derived observables.
 
     // process weighted energies
-    normalized_energy(e, normalized_tot_e, n_save, N);
+    normalized_energy(tot_e, normalized_tot_e, n_save, N);
     normalized_energy(kin_e, normalized_kin_e, n_save, N);
     normalized_energy(pot_e, normalized_pot_e, n_save, N);
 
