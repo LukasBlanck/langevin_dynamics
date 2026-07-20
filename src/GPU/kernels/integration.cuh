@@ -5,6 +5,8 @@
 // the position array q should be block memory __shared__
 // for the force calculation for faster access at neighbouring q vals
 
+#pragma once
+
 #include <cstddef>
 
 #include <cuda_runtime.h>
@@ -32,30 +34,25 @@ __device__ inline double compute_site_force(const double *shared_q, const int N,
     return force_at_site;
 }
 
-// rng helper
-__device__ inline double normal(unsigned long long seed, unsigned long long ensemble_id,
-                                unsigned long long global_step, unsigned long long bath_id) {
-    curandStatePhilox4_32_10_t state;
-    const unsigned long long stream_id = 2ULL * ensemble_id + bath_id;
-    curand_init(seed, stream_id, global_step, &state);
-    return curand_normal_double(&state);
-}
-
 template <class Potential>
-__global__ void integrate(double *p, double *q, const Potential potential,
-                          const int current_batch_size, const int N, const int steps_this_interval,
-                          const int completed_steps, unsigned long long seed, const double m,
-                          const double eta, const double c, const int batch_begin,
-                          const double dt) {
+__global__ void integrate(double *p, double *q, curandStatePhilox4_32_10_t *rng_states,
+                          const Potential potential, const int current_batch_size, const int N,
+                          const int steps_this_interval, const double m, const double eta,
+                          const double c, const double dt) {
 
-    // Initialize one seed per trajectory (like in CPU version)
+    // one trajectory - one block
     const int trajectory = blockIdx.x;
     if (trajectory >= current_batch_size) {
         return;
     }
-    // for rng
-    const unsigned long long ensemble_id =
-        static_cast<unsigned long long>(batch_begin + trajectory);
+
+    // Initialize one seed per trajectory (like in CPU version)
+    // only thread 0 (thermal batch and random energy injection)
+    // handles the state of the rng in that trajectory for all time steps
+    curandStatePhilox4_32_10_t local_rng; // tread 0 curand state
+    if (threadIdx.x == 0) {
+        local_rng = rng_states[trajectory];
+    }
 
     // block shared q for fast access within block
     extern __shared__ double shared_q[]; // shared per block
@@ -87,18 +84,12 @@ __global__ void integrate(double *p, double *q, const Potential potential,
         __syncthreads();
 
         // -- O -- OU step
-        for (int site = threadIdx.x; site < N; site += blockDim.x) {
-            if (site == 0) {
-                const unsigned long long global_step =
-                    static_cast<unsigned long long>(completed_steps + step);
-
-                const double Z = normal(seed, ensemble_id, global_step,
-                                        0ULL // left bath
-                );
-                // only left bath and noise
-                p[trajectory * N] = c * p[trajectory * N] + eta * Z;
-            }
+        // for (int site = threadIdx.x; site < N; site += blockDim.x) {
+        if (threadIdx.x == 0) {
+            const double Z = curand_normal_double(&local_rng);
+            p[trajectory * N] = c * p[trajectory * N] + eta * Z;
         }
+        // }
         __syncthreads();
 
         // -- A -- update q
@@ -122,5 +113,9 @@ __global__ void integrate(double *p, double *q, const Potential potential,
             p[trajectory * N + site] += 0.5 * dt * force;
         }
         __syncthreads();
+    }
+
+    if (threadIdx.x == 0) {
+        rng_states[trajectory] = local_rng;
     }
 }
