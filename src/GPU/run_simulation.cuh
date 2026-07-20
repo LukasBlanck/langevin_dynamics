@@ -6,6 +6,7 @@
 #include "GPU/kernels/extraction.cuh"
 #include "GPU/kernels/integration.cuh"
 #include "GPU/kernels/reduction.cuh"
+#include "GPU/kernels/rng.cuh"
 #include "io/netCDF_writer.hpp"
 #include <cstddef>
 #include <filesystem>
@@ -129,9 +130,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                           static_cast<std::size_t>(N) * batch_size * sizeof(double)));
 
     // Final observables [n_save * N]
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e), static_cast<std::size_t>(N) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e),
-                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
     for (int batch = 0; batch < number_of_batches; ++batch) {
 
@@ -145,8 +145,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
         // initialize the rng states per batch
         constexpr int rng_threads_per_block = threads_per_block;
-        const int rng_blocks = (current_batch_size + rng_init_threads - 1) /
-                               rng_init_threads; // this batch has currently #rng_blocks blocks
+        const int rng_blocks = (current_batch_size + rng_threads_per_block - 1) /
+                               rng_threads_per_block; // this batch has currently #rng_blocks blocks
         initialize_rng_states<<<rng_blocks, rng_threads_per_block>>>(
             d_rng_states, static_cast<unsigned long long>(seed), batch_begin, current_batch_size);
         CUDA_CHECK(cudaGetLastError());
