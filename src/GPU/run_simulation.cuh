@@ -109,12 +109,18 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     double *d_q = nullptr;
     double *d_tot_e_temporary = nullptr;
     double *d_tot_e = nullptr;
-    curandStatePhilox4_32_10_t *d_rng_states = nullptr; // rng state (persistent per trajectory)
+    double *d_pot_e_temporary = nullptr;
+    double *d_pot_e = nullptr;
+    double *d_kin_e_temporary = nullptr;
+    double *d_kin_e = nullptr;
 
+    // rng device allocation
+    curandStatePhilox4_32_10_t *d_rng_states = nullptr; // rng state (persistent per trajectory)
     CUDA_CHECK(
         cudaMalloc(reinterpret_cast<void **>(&d_rng_states),
                    static_cast<std::size_t>(batch_size) * sizeof(curandStatePhilox4_32_10_t)));
 
+    // bytes of shared memory on block
     const std::size_t shared_bytes = static_cast<std::size_t>(N) * sizeof(double);
     const std::size_t reduction_shared_bytes =
         static_cast<std::size_t>(threads_per_block) * sizeof(double);
@@ -128,11 +134,24 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // reusable (temporary observables) [batch_size * N]
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e_temporary),
                           static_cast<std::size_t>(N) * batch_size * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_pot_e_temporary),
+                          static_cast<std::size_t>(N) * batch_size * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_kin_e_temporary),
+                          static_cast<std::size_t>(N) * batch_size * sizeof(double)));
 
     // Final observables [n_save * N]
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e), static_cast<std::size_t>(N) * n_save * sizeof(double)));
-    CUDA_CHECK(cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tot_e),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_pot_e),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_kin_e),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
+    CUDA_CHECK(cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_pot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_kin_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+
+    // begin itegration (per batch)
     for (int batch = 0; batch < number_of_batches; ++batch) {
 
         const int batch_begin = batch * batch_size;
@@ -156,13 +175,15 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
         // initial measurement at t = 0.
         extract_observables<Potential><<<current_batch_size, threads_per_block, shared_bytes>>>(
-            d_p, d_q, d_tot_e_temporary, potential, current_batch_size, N, m);
+            d_p, d_q, d_tot_e_temporary, d_pot_e_temporary, d_kin_e_temporary, potential,
+            current_batch_size, N, m);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
 
         // launch N blocks - one block is one site
         perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
-            d_tot_e_temporary, d_tot_e, current_batch_size, N, n_save_index);
+            d_tot_e_temporary, d_pot_e_temporary, d_kin_e_temporary, d_tot_e, d_pot_e, d_kin_e,
+            current_batch_size, N, n_save_index);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         ++n_save_index;
@@ -179,13 +200,15 @@ inline void run_simulation(const Config &config, const std::string &output_path)
             CUDA_CHECK(cudaDeviceSynchronize());
 
             extract_observables<Potential><<<current_batch_size, threads_per_block, shared_bytes>>>(
-                d_p, d_q, d_tot_e_temporary, potential, current_batch_size, N, m);
+                d_p, d_q, d_tot_e_temporary, d_pot_e_temporary, d_kin_e_temporary, potential,
+                current_batch_size, N, m);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
 
             // launch N blocks - one block is one site
             perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
-                d_tot_e_temporary, d_tot_e, current_batch_size, N, n_save_index);
+                d_tot_e_temporary, d_pot_e_temporary, d_kin_e_temporary, d_tot_e, d_pot_e, d_kin_e,
+                current_batch_size, N, n_save_index);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
 
@@ -198,15 +221,32 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaMemcpy(tot_e.data(), d_tot_e,
                           static_cast<std::size_t>(N) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(pot_e.data(), d_pot_e,
+                          static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(kin_e.data(), d_kin_e,
+                          static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
 
     // free GPU
     CUDA_CHECK(cudaFree(d_tot_e));
     CUDA_CHECK(cudaFree(d_tot_e_temporary));
+    CUDA_CHECK(cudaFree(d_pot_e));
+    CUDA_CHECK(cudaFree(d_pot_e_temporary));
+    CUDA_CHECK(cudaFree(d_kin_e));
+    CUDA_CHECK(cudaFree(d_kin_e_temporary));
+
     CUDA_CHECK(cudaFree(d_p));
     CUDA_CHECK(cudaFree(d_q));
 
     // Normalize by N_ensemble.
     for (double &value : tot_e) {
+        value /= static_cast<double>(N_ensemble);
+    }
+    for (double &value : pot_e) {
+        value /= static_cast<double>(N_ensemble);
+    }
+    for (double &value : kin_e) {
         value /= static_cast<double>(N_ensemble);
     }
 
@@ -227,6 +267,10 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // energy observables
     writer.write_time_site_array("local_total_energy", "ensemble averaged local total energy",
                                  "energy", tot_e);
+    writer.write_time_site_array("local_potential_energy",
+                                 "ensemble averaged local potential energy", "energy", pot_e);
+    writer.write_time_site_array("local_kinetic_energy", "ensemble averaged local kinetic energy",
+                                 "energy", kin_e);
 
     // simulation finished
     std::cout << "Finished simulation.\n";

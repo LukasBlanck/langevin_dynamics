@@ -31,7 +31,49 @@ __device__ inline void symmetric_energy_at_site(double *tot_e, const double *sha
 }
 
 template <class Potential>
-__global__ inline void extract_observables(double *p, double *q, double *tot_e, Potential potential,
+__device__ inline void potential_energy_at_site(double *pot_e, const double *shared_q, const int N,
+                                                const double m, const Potential &potential,
+                                                const int trajectory, const int site) {
+
+    // tot_e is of form [batch_size, N]
+    // site = threadIdx.x
+    const int stride = trajectory * N;
+
+    // boundary
+    if (site == N - 1) {
+        pot_e[N - 1 + stride] = 0.5 * potential.V(shared_q[N - 2] - shared_q[N - 1]);
+    } else if (site > 0) {
+        // inside sites
+        pot_e[stride + site] = 0.5 * potential.V(shared_q[site - 1] - shared_q[site]) +
+                               0.5 * potential.V(shared_q[site] - shared_q[site + 1]);
+    } else if (site == 0) {
+        pot_e[0 + stride] = 0.5 * potential.V(shared_q[0] - shared_q[1]);
+    }
+}
+
+template <class Potential>
+__device__ inline void kinetic_energy_at_site(double *kin_e, const double *p, const int N,
+                                              const double m, const int trajectory,
+                                              const int site) {
+
+    // tot_e is of form [batch_size, N]
+    // site = threadIdx.x
+    const int stride = trajectory * N;
+
+    // boundary
+    if (site == N - 1) {
+        kin_e[N - 1 + stride] = p[stride + N - 1] * p[stride + N - 1] / (2 * m);
+    } else if (site > 0) {
+        // inside sites
+        kin_e[stride + site] = p[stride + site] * p[stride + site] / (2 * m);
+    } else if (site == 0) {
+        kin_e[0 + stride] = p[stride + 0] * p[stride + 0] / (2 * m);
+    }
+}
+
+template <class Potential>
+__global__ inline void extract_observables(double *p, double *q, double *tot_e, double *pot_e,
+                                           double *kin_e, Potential potential,
                                            const int current_batch_size, const int N,
                                            const double m) {
 
@@ -51,7 +93,18 @@ __global__ inline void extract_observables(double *p, double *q, double *tot_e, 
     __syncthreads(); // wait for all threads within a block to have initialized/updated the
                      // shared q
 
+    // extract tot, pot and kin energy
     for (int site = threadIdx.x; site < N; site += blockDim.x) {
         symmetric_energy_at_site(tot_e, shared_q, p, N, m, potential, trajectory, site);
     }
+
+    for (int site = threadIdx.x; site < N; site += blockDim.x) {
+        potential_energy_at_site(pot_e, shared_q, N, m, potential, trajectory, site);
+    }
+
+    for (int site = threadIdx.x; site < N; site += blockDim.x) {
+        kinetic_energy_at_site(kin_e, N, m, trajectory, site);
+    }
+
+    // TODO: HPC: comput potential then kinetic, then just sum for total
 }
