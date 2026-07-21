@@ -2,13 +2,14 @@
 // the definition of those kernels should be in kernels/
 
 #include "../input/input.hpp"
-#include "GPU/cuda_check.hpp"
+#include "cuda_check.hpp"
 #include "GPU/kernels/extraction.cuh"
 #include "GPU/kernels/integration.cuh"
 #include "GPU/kernels/pearson.cuh"
 #include "GPU/kernels/reduction.cuh"
 #include "GPU/kernels/rng.cuh"
-#include "device_buffers.cuh"
+#include "host_device/copy_data.hpp"
+#include "host_device/structs.hpp"
 #include "io/netCDF_writer.hpp"
 #include "process/helpers.hpp"
 #include <cstddef>
@@ -34,52 +35,6 @@
 //     // Process site.
 // }
 
-struct HostPearsonBuffers {
-    std::vector<double> xj0;
-    std::vector<double> xj;
-    std::vector<double> x0;
-    std::vector<double> xj2;
-    std::vector<double> x02;
-    std::vector<double> correlation;
-
-    explicit HostPearsonBuffers(std::size_t count)
-        : xj0(count, 0.0), xj(count, 0.0), x0(count, 0.0), xj2(count, 0.0), x02(count, 0.0),
-          correlation(count, 0.0) {}
-};
-
-struct HostEnergyBuffers {
-    std::vector<double> total;
-    std::vector<double> potential;
-    std::vector<double> kinetic;
-
-    std::vector<double> normalized_total;
-    std::vector<double> normalized_potential;
-    std::vector<double> normalized_kinetic;
-
-    std::vector<double> first_moment_total; // only total energy
-    std::vector<double> total_spread;       // only total energy
-
-    HostEnergyBuffers(std::size_t final_size, std::size_t time_count)
-        : total(final_size, 0.0), potential(final_size, 0.0), kinetic(final_size, 0.0),
-          normalized_total(final_size, 0.0), normalized_potential(final_size, 0.0),
-          normalized_kinetic(final_size, 0.0), first_moment_total(time_count, 0.0),
-          total_spread(time_count, 0.0) {}
-};
-
-inline void copy_pearson_to_host(const DevicePearsonBuffers &device, HostPearsonBuffers &host) {
-    device.xj0.copy_to_host(host.xj0);
-    device.xj.copy_to_host(host.xj);
-    device.x0.copy_to_host(host.x0);
-    device.xj2.copy_to_host(host.xj2);
-    device.x02.copy_to_host(host.x02);
-}
-
-inline void copy_energy_to_host(const DeviceEnergyBuffers &device, HostEnergyBuffers &host) {
-    device.total.copy_to_host(host.total);
-    device.potential.copy_to_host(host.potential);
-    device.kinetic.copy_to_host(host.kinetic);
-}
-
 template <class Potential>
 inline void run_simulation(const Config &config, const std::string &output_path) {
 
@@ -98,6 +53,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     const double left_bath_T = config.model.left_bath_T;
     const double gamma = config.model.lambda / m;
 
+    // -----------------------------------------------------------------------
     // saving helpers
     constexpr std::int64_t target_n_save =
         1000; // ensure good visual resolution and small enouggh memory demand
@@ -122,6 +78,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     const double c = (std::exp(-gamma * dt));
     const double eta = std::sqrt(m * kB * left_bath_T * (1 - c * c));
 
+    // -----------------------------------------------------------------------
     // device constants
     // TODO: inspect depedence on performance/throughput on device
     const int batch_size = 256;
@@ -141,7 +98,11 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     const std::size_t pearson_reduction_shared_bytes =
         static_cast<std::size_t>(threads_per_block) * num_of_pearson_observables * sizeof(double);
 
-    // ---- HOST ----
+    // -----------------------------------------------------------------------
+    // --------------
+    // |    HOST    |
+    // --------------
+
     // allocate final results (observables) [n_save * N] host buffers
     const std::size_t final_size = static_cast<std::size_t>(n_save) * static_cast<std::size_t>(N);
     const std::size_t bond_size =
@@ -154,12 +115,16 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     std::vector<double> time(n_save, 0.0);
 
-    // ---- DEVICE ----
-    // allocate ALL simulation buffers
+    // -----------------------------------------------------------------------
+    // --------------
+    // |   DEVICE   |
+    // --------------
+
     const std::size_t temporary_size =
         static_cast<std::size_t>(batch_size) *
         static_cast<std::size_t>(N); // reusable (temporary observables) [batch_size * N]
 
+    // allocate ALL simulation buffers
     DeviceSimulationBuffers device{
         temporary_size, final_size, bond_size,
         batch_size}; // allocates ALL temporaray: q, p, tot, pot, kin of size [batch_size * N] and
@@ -336,7 +301,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     writer.write_time_site_array("local_total_energy", "ensemble averaged local total energy",
                                  "energy", host_energy.total);
     writer.write_time_site_array("local_potential_energy",
-                                 "ensemble averaged local potential energy", "energy", host_energy.potential);
+                                 "ensemble averaged local potential energy", "energy",
+                                 host_energy.potential);
     writer.write_time_site_array("local_kinetic_energy", "ensemble averaged local kinetic energy",
                                  "energy", host_energy.kinetic);
 

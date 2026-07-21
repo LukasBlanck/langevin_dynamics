@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cuda_check.hpp"
+#include "../cuda_check.hpp"
 
 #include <cstddef>
 #include <stdexcept>
