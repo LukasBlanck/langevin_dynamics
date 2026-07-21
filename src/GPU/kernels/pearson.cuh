@@ -80,7 +80,7 @@ __global__ inline void pearson_reduction(const double *x, double *xj0, double *x
 
 // pearson bond correlation
 __global__ inline void pearson_bond_reduction(const double *q, double *rj0, double *rj, double *r0,
-                                              double *rj2, double *r02, const int N_bond,
+                                              double *rj2, double *r02, const int N,
                                               const int current_batch_size,
                                               const int n_save_index) {
 
@@ -89,6 +89,7 @@ __global__ inline void pearson_bond_reduction(const double *q, double *rj0, doub
 
     // const int trajectory = threadIdx.x;
     const int bond = blockIdx.x;
+    const int N_bond = N - 1;
 
     if (bond >= N_bond) {
         return;
@@ -102,7 +103,8 @@ __global__ inline void pearson_bond_reduction(const double *q, double *rj0, doub
     for (int trajectory = threadIdx.x; trajectory < current_batch_size;
          trajectory += static_cast<int>(blockDim.x)) {
         // indices
-        const std::size_t base = static_cast<std::size_t>(trajectory) * static_cast<std::size_t>(N_bond);
+        const std::size_t base =
+            static_cast<std::size_t>(trajectory) * static_cast<std::size_t>(N);
         const double value_j =
             q[base + static_cast<std::size_t>(bond)] - q[base + static_cast<std::size_t>(bond + 1)];
         const double value_0 = q[base] - q[base + 1];
