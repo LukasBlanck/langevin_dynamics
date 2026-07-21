@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <utility>
 #include <vector>
+#include <cstdlib>
+#include <iostream>
 #include <stdexcept>
 
 #include <cuda_runtime.h>
