@@ -30,7 +30,7 @@ __global__ inline void pearson_reduction(const double *x, double *xj0, double *x
         return;
     }
 
-    extern __shared__ Pearson batch_sum[];
+    extern __shared__ Pearson pearson_batch_sum[];
 
     // local sums (to load mem into registers and not to shared memory)
     Pearson local_sum{0, 0, 0, 0, 0};
@@ -50,18 +50,18 @@ __global__ inline void pearson_reduction(const double *x, double *xj0, double *x
     }
 
     // load registers (local sum) into shared mem
-    batch_sum[trajectory] = local_sum;
+    pearson_batch_sum[threadIdx.x] = local_sum;
     __syncthreads();
 
     // perform tree based addition as in reduction.cuh
     for (unsigned int stride = blockDim.x / 2; stride > 0;
          stride >>= 1) { // ATTENTION Requires blockDim.x to be a power of two. !-!-!
         if (threadIdx.x < stride) {
-            batch_sum[threadIdx.x].xj0 += batch_sum[threadIdx.x + stride].xj0;
-            batch_sum[threadIdx.x].xj += batch_sum[threadIdx.x + stride].xj;
-            batch_sum[threadIdx.x].x0 += batch_sum[threadIdx.x + stride].x0;
-            batch_sum[threadIdx.x].xj2 += batch_sum[threadIdx.x + stride].xj2;
-            batch_sum[threadIdx.x].x02 += batch_sum[threadIdx.x + stride].x02;
+            pearson_batch_sum[threadIdx.x].xj0 += pearson_batch_sum[threadIdx.x + stride].xj0;
+            pearson_batch_sum[threadIdx.x].xj += pearson_batch_sum[threadIdx.x + stride].xj;
+            pearson_batch_sum[threadIdx.x].x0 += pearson_batch_sum[threadIdx.x + stride].x0;
+            pearson_batch_sum[threadIdx.x].xj2 += pearson_batch_sum[threadIdx.x + stride].xj2;
+            pearson_batch_sum[threadIdx.x].x02 += pearson_batch_sum[threadIdx.x + stride].x02;
         }
         __syncthreads(); // ensure every tree add stage is completed before proceeding to next stage
     }
@@ -70,10 +70,10 @@ __global__ inline void pearson_reduction(const double *x, double *xj0, double *x
     if (threadIdx.x == 0) {
         const std::size_t output_index = static_cast<std::size_t>(n_save_index) * N + site;
         // += because successive batches contribute to the same site.
-        xj0[output_index] += batch_sum[0].xj0;
-        xj[output_index] += batch_sum[0].xj;
-        x0[output_index] += batch_sum[0].x0;
-        xj2[output_index] += batch_sum[0].xj2;
-        x02[output_index] += batch_sum[0].x02;
+        xj0[output_index] += pearson_batch_sum[0].xj0;
+        xj[output_index] += pearson_batch_sum[0].xj;
+        x0[output_index] += pearson_batch_sum[0].x0;
+        xj2[output_index] += pearson_batch_sum[0].xj2;
+        x02[output_index] += pearson_batch_sum[0].x02;
     }
 }

@@ -222,7 +222,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
         // pearson reduction
         pearson_reduction<<<N, threads_per_block, pearson_reduction_shared_bytes>>>(
-            p, pj0, pj, p0, pj2, p02, N, current_batch_size, n_save_index);
+           d_p, d_pj0, d_pj, d_p0, d_pj2, d_p02, N, current_batch_size, n_save_index);
 
         // launch N blocks - one block is one site
         perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
@@ -251,7 +251,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
             // pearson reduction
             pearson_reduction<<<N, threads_per_block, pearson_reduction_shared_bytes>>>(
-                p, pj0, pj, p0, pj2, p02, N, current_batch_size, n_save_index);
+                d_p, d_pj0, d_pj, d_p0, d_pj2, d_p02, N, current_batch_size, n_save_index);
 
             // launch N blocks - one block is one site
             perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
