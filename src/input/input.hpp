@@ -15,7 +15,6 @@ struct Config {
     struct Time {
         int N = 10000;
         double end_time = 5.0;
-        int save_every = 10;
     };
 
     struct Ensemble {

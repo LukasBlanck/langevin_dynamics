@@ -44,7 +44,6 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     const double end_time = config.time.end_time;
     const int N_time = config.time.N;
-    const int save_every = config.time.save_every;
     const double dt = end_time / static_cast<double>(N_time);
 
     const int N_ensemble = config.ensemble.N;
@@ -53,7 +52,18 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     const double gamma = config.model.lambda / m;
 
     // saving helpers
-    const int n_save = 1 + (N_time + save_every - 1) / save_every;
+    constexpr std::int64_t target_n_save =
+        1000; // ensure good visual resolution and small enouggh memory demand
+    if (N_time < target_n_save - 1) {
+        throw std::invalid_argument("N_time must be at least 999");
+    }
+    const int save_every = static_cast<int>((N_time - 1) / (target_n_save - 2));
+    const int n_save = static_cast<int>(1 + (N_time + save_every - 1) / save_every);
+
+    if (n_save < target_n_save) {
+        throw std::logic_error("Internal error: n_save is below target");
+    }
+
     std::vector<double> tot_e(n_save * N, 0.0);
     std::vector<double> time(n_save, 0.0);
     std::vector<double> kin_e(n_save * N, 0.0);
@@ -200,7 +210,7 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                           static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj0),
-                         static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj),
                           static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_r0),
@@ -356,15 +366,20 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaMemcpy(q02.data(), d_q02, static_cast<std::size_t>(N) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
 
-    CUDA_CHECK(cudaMemcpy(rj0.data(), d_rj0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(rj0.data(), d_rj0,
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
-    CUDA_CHECK(cudaMemcpy(rj.data(), d_rj, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(rj.data(), d_rj,
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
-    CUDA_CHECK(cudaMemcpy(r0.data(), d_r0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(r0.data(), d_r0,
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
-    CUDA_CHECK(cudaMemcpy(rj2.data(), d_rj2, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(rj2.data(), d_rj2,
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
-    CUDA_CHECK(cudaMemcpy(r02.data(), d_r02, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(r02.data(), d_r02,
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
 
     // free GPU

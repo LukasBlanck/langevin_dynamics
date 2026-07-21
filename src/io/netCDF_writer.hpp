@@ -109,7 +109,6 @@ class NetCDFWriter {
         file_.putAtt("N", netCDF::ncInt, config_.grid.N);
         file_.putAtt("N_time", netCDF::ncInt, config_.time.N);
         file_.putAtt("n_save", netCDF::ncInt, n_save_);
-        file_.putAtt("save_every", netCDF::ncInt, config_.time.save_every);
 
         file_.putAtt("dt", netCDF::ncDouble, dt_);
         file_.putAtt("end_time", netCDF::ncDouble, config_.time.end_time);

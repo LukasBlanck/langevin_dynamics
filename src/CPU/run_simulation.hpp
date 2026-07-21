@@ -2,10 +2,10 @@
 // it is seperate for visibility reasons of the main.cpp
 #pragma once
 
-#include "BAOAB.hpp"
-#include "extraction_helpers.hpp"
 #include "../input/input.hpp"
 #include "../io/netCDF_writer.hpp"
+#include "BAOAB.hpp"
+#include "extraction_helpers.hpp"
 #include <cassert>
 #include <filesystem>
 #include <stdexcept>
@@ -26,13 +26,22 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     const double end_time = config.time.end_time;
     const int N_time = config.time.N;
-    const int save_every = config.time.save_every;
     const double dt = end_time / static_cast<double>(N_time);
 
     const int N_ensemble = config.ensemble.N;
 
     // saving helpers
-    const int n_save = 1 + (N_time + save_every - 1) / save_every;
+    constexpr std::int64_t target_n_save =
+        1000; // ensure good visual resolution and small enouggh memory demand
+    if (N_time < target_n_save - 1) {
+        throw std::invalid_argument("N_time must be at least 999");
+    }
+    const int save_every = static_cast<int>((N_time - 1) / (target_n_save - 2));
+    const int n_save = static_cast<int>(1 + (N_time + save_every - 1) / save_every);
+
+    if (n_save < target_n_save) {
+        throw std::logic_error("Internal error: n_save is below target");
+    }
     std::vector<double> e(n_save * N, 0.0);
     std::vector<double> time(n_save, 0.0);
     std::vector<double> kin_e(n_save * N, 0.0);

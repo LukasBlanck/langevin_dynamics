@@ -1,7 +1,7 @@
 // config.cpp
 #include "input.hpp"
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 
 #include "../../extern/toml.hpp"
 
@@ -17,7 +17,6 @@ Config load_config(const std::string &filename) {
 
     config.time.N = table["time"]["Nt"].value_or(config.time.N);
     config.time.end_time = table["time"]["end_time"].value_or(config.time.end_time);
-    config.time.save_every = table["time"]["save_every"].value_or(config.time.save_every);
 
     config.ensemble.N = table["ensemble"]["N"].value_or(config.ensemble.N);
 
@@ -30,7 +29,7 @@ Config load_config(const std::string &filename) {
     return config;
 }
 
-void print_config(const Config& config) {
+void print_config(const Config &config) {
     constexpr int label_width = 18;
 
     std::cout << "\n";
@@ -52,9 +51,7 @@ void print_config(const Config& config) {
     std::cout << "  " << std::left << std::setw(label_width) << "N"
               << " = " << config.time.N << "\n";
     std::cout << "  " << std::left << std::setw(label_width) << "end_time"
-              << " = " << config.time.end_time << "\n";
-    std::cout << "  " << std::left << std::setw(label_width) << "save_every"
-              << " = " << config.time.save_every << "\n\n";
+              << " = " << config.time.end_time << "\n\n";
 
     std::cout << "[ensemble]\n";
     std::cout << "  " << std::left << std::setw(label_width) << "N"
