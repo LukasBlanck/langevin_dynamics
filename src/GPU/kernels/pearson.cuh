@@ -90,7 +90,7 @@ __global__ inline void pearson_bond_reduction(const double *q, double *rj0, doub
     // const int trajectory = threadIdx.x;
     const int bond = blockIdx.x;
 
-    if (bond >= N) {
+    if (bond >= N_bond) {
         return;
     }
 
@@ -102,7 +102,7 @@ __global__ inline void pearson_bond_reduction(const double *q, double *rj0, doub
     for (int trajectory = threadIdx.x; trajectory < current_batch_size;
          trajectory += static_cast<int>(blockDim.x)) {
         // indices
-        const std::size_t base = static_cast<std::size_t>(trajectory) * static_cast<std::size_t>(N);
+        const std::size_t base = static_cast<std::size_t>(trajectory) * static_cast<std::size_t>(N_bond);
         const double value_j =
             q[base + static_cast<std::size_t>(bond)] - q[base + static_cast<std::size_t>(bond + 1)];
         const double value_0 = q[base] - q[base + 1];
@@ -138,7 +138,7 @@ __global__ inline void pearson_bond_reduction(const double *q, double *rj0, doub
 
     // accumulate now different batches if N_ensemble > batch_size
     if (threadIdx.x == 0) {
-        const std::size_t output_index = static_cast<std::size_t>(n_save_index) * N + site;
+        const std::size_t output_index = static_cast<std::size_t>(n_save_index) * N_bond + bond;
         // += because successive batches contribute to the same site.
         rj0[output_index] += pearson_bond_batch_sum[0].xj0;
         rj[output_index] += pearson_bond_batch_sum[0].xj;

@@ -199,16 +199,16 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q02),
                           static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
-    UDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj0),
-                         static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj0),
+                         static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj),
-                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_r0),
-                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj2),
-                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_r02),
-                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+                          static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
 
     CUDA_CHECK(cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_pot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
@@ -228,12 +228,12 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaMemset(d_qj2, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_q02, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
-    CUDA_CHECK(cudaMemset(d_rj0, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
-    CUDA_CHECK(cudaMemset(d_rj, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
-    CUDA_CHECK(cudaMemset(d_r0, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_rj0, 0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_rj, 0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_r0, 0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
 
-    CUDA_CHECK(cudaMemset(d_rj2, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
-    CUDA_CHECK(cudaMemset(d_r02, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_rj2, 0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_r02, 0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double)));
 
     // TODO:
     // at n_save_index=10 a ETA?
@@ -356,15 +356,15 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaMemcpy(q02.data(), d_q02, static_cast<std::size_t>(N) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
 
-    CUDA_CHECK(cudaMemcpy(rj0.data(), d_rj0, static_cast<std::size_t>(N) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(rj0.data(), d_rj0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
-    CUDA_CHECK(cudaMemcpy(rj.data(), d_rj, static_cast<std::size_t>(N) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(rj.data(), d_rj, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
-    CUDA_CHECK(cudaMemcpy(r0.data(), d_r0, static_cast<std::size_t>(N) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(r0.data(), d_r0, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
-    CUDA_CHECK(cudaMemcpy(rj2.data(), d_rj2, static_cast<std::size_t>(N) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(rj2.data(), d_rj2, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
-    CUDA_CHECK(cudaMemcpy(r02.data(), d_r02, static_cast<std::size_t>(N) * n_save * sizeof(double),
+    CUDA_CHECK(cudaMemcpy(r02.data(), d_r02, static_cast<std::size_t>(N_bond) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
 
     // free GPU
