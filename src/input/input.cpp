@@ -73,5 +73,5 @@ void print_config(const Config &config) {
 
     std::cout << "──────────────────────────────────────────────\n";
     std::cout << "Simulation setup complete.\n";
-    std::cout << "──────────────────────────────────────────────\n\n";
+    std::cout << "──────────────────────────────────────────────\n\n" << std::flush;
 }
