@@ -2,18 +2,21 @@
 // the definition of those kernels should be in kernels/
 
 #include "../input/input.hpp"
-#include "cuda_check.hpp"
 #include "GPU/kernels/extraction.cuh"
 #include "GPU/kernels/integration.cuh"
 #include "GPU/kernels/pearson.cuh"
 #include "GPU/kernels/reduction.cuh"
 #include "GPU/kernels/rng.cuh"
+#include "cuda_check.hpp"
 #include "host_device/copy_data.hpp"
 #include "host_device/structs.hpp"
 #include "io/netCDF_writer.hpp"
 #include "process/helpers.hpp"
+#include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <vector>
 
@@ -136,6 +139,16 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // add timing?
     // here maybe stable dt calculation? or seperate with stable dt at runtime?
 
+    // -----------------------------------------------------------------------
+    // -------------------
+    // |   INTEGRATION   |
+    // -------------------
+
+    // ETA
+    const int eta_sample = 10; // number of n_save_index
+    const auto wall_start = std::chrono::steady_clock::now();
+    bool eta_printed = false;
+
     // begin itegration (per batch)
     for (int batch = 0; batch < number_of_batches; ++batch) {
 
@@ -243,6 +256,21 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
             completed_steps += steps_this_interval;
             ++n_save_index;
+
+            // ETA
+            if (!eta_printed && n_save_index >= eta_sample) {
+                const double elapsed =
+                    std::chrono::duration<double>(std::chrono::steady_clock::now() - wall_start)
+                        .count();
+                const double progress =
+                    (static_cast<double>(batch_begin) * N_time +
+                     static_cast<double>(current_batch_size) * completed_steps) /
+                    (static_cast<double>(N_ensemble) * N_time);
+                const long long eta = static_cast<long long>(elapsed * (1.0 - progress) / progress);
+                std::cout << "ETA: " << eta / 60 << ":" << std::setw(2) << std::setfill('0')
+                          << eta % 60 << " min:s" << std::setfill(' ') << "\n\n";
+                eta_printed = true;
+            }
         }
     }
 
