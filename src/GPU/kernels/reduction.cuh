@@ -10,8 +10,6 @@
 
 #pragma once
 
-#include "../structs.hpp"
-
 #include <cuda_runtime.h>
 
 struct Observables {

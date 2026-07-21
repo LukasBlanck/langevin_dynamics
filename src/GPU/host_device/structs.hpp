@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "device_buffers.cuh"
+#include "device_buffer.cuh"
 
 #include <cstddef>
 #include <curand_kernel.h>
