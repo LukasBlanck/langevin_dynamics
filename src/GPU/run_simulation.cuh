@@ -5,10 +5,11 @@
 #include "GPU/cuda_check.hpp"
 #include "GPU/kernels/extraction.cuh"
 #include "GPU/kernels/integration.cuh"
+#include "GPU/kernels/pearson.cuh"
 #include "GPU/kernels/reduction.cuh"
 #include "GPU/kernels/rng.cuh"
-#include "process/helpers.hpp"
 #include "io/netCDF_writer.hpp"
+#include "process/helpers.hpp"
 #include <cstddef>
 #include <filesystem>
 #include <iostream>
@@ -115,6 +116,14 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     double *d_kin_e_temporary = nullptr;
     double *d_kin_e = nullptr;
 
+    // pearson correlators
+    double *d_pj0 = nullptr;
+    double *d_pj = nullptr;
+    double *d_p0 = nullptr;
+
+    double *d_pj2 = nullptr;
+    double *d_p02 = nullptr;
+
     // rng device allocation
     curandStatePhilox4_32_10_t *d_rng_states = nullptr; // rng state (persistent per trajectory)
     CUDA_CHECK(
@@ -128,6 +137,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
            // improvements the number can be smaller then the number of observables
     const std::size_t reduction_shared_bytes =
         static_cast<std::size_t>(threads_per_block) * num_of_observables * sizeof(double);
+    const int num_of_pearson_observables = 5;
+    const std::size_t pearson_reduction_shared_bytes =
+        static_cast<std::size_t>(threads_per_block) * num_of_pearson_observables * sizeof(double);
 
     // "temporary" q and p arrays [batch_size * N]
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q),
@@ -151,9 +163,33 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_kin_e),
                           static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_pj0),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_pj),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_p0),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_pj2),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_p02),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+
     CUDA_CHECK(cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_pot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_kin_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+
+    CUDA_CHECK(cudaMemset(d_pj0, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_pj, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_p0, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+
+    CUDA_CHECK(cudaMemset(d_pj2, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_p02, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+
+    // TODO:
+    // at n_save_index=10 a ETA?
+    // add n_save == 1000
+    // add timing?
+    // here maybe stable dt calculation? or seperate with stable dt at runtime?
 
     // begin itegration (per batch)
     for (int batch = 0; batch < number_of_batches; ++batch) {
@@ -184,6 +220,10 @@ inline void run_simulation(const Config &config, const std::string &output_path)
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
 
+        // pearson reduction
+        pearson_reduction<<<N, threads_per_block, pearson_reduction_shared_bytes>>>(
+            p, pj0, pj, p0, pj2, p02, N, current_batch_size, n_save_index);
+
         // launch N blocks - one block is one site
         perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
             d_tot_e_temporary, d_pot_e_temporary, d_kin_e_temporary, d_tot_e, d_pot_e, d_kin_e,
@@ -208,6 +248,10 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                 current_batch_size, N, m);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
+
+            // pearson reduction
+            pearson_reduction<<<N, threads_per_block, pearson_reduction_shared_bytes>>>(
+                p, pj0, pj, p0, pj2, p02, N, current_batch_size, n_save_index);
 
             // launch N blocks - one block is one site
             perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
