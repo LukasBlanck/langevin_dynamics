@@ -268,7 +268,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                     (static_cast<double>(N_ensemble) * N_time);
                 const long long eta = static_cast<long long>(elapsed * (1.0 - progress) / progress);
                 std::cout << "ETA: " << eta / 60 << ":" << std::setw(2) << std::setfill('0')
-                          << eta % 60 << " min:s" << std::setfill(' ') << "\n\n";
+                          << eta % 60 << " min:s" << std::setfill(' ') << "\n\n"
+                          << std::flush;
                 eta_printed = true;
             }
         }
