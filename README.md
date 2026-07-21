@@ -23,7 +23,7 @@ $$
 and
 
 $$
-<\xi> = 0
+<\xi(t)> = 0
 $$
 
 This means, that there is no time dependent correlation between forces at different times t and t'. On the time scale of the collision of the molecules this is of course not valid, but since we are only interested in the movement of the bigger grain, which has a bigger characteristic time scale, this approximation is valid.
@@ -70,7 +70,7 @@ or expressed explicitly:
 
 $$
 \boxed{
-dp_j =  {\color{green}{ -\left[ \frac{\partial V(r_{j-1})}{\partial q_j} + \frac{\partial V(r_{j})}{\partial q_j} \right] }} dt -\lambda v(t)dt + \sqrt{2\lambda m k_B T_j(t)} {\color{red}{dW_j(t)}} }
+dp_j =  {\color{green}{ -\left[ \frac{\partial V(r_{j-1})}{\partial q_j} + \frac{\partial V(r_{j})}{\partial q_j} \right] }} dt -\lambda v(t)dt + \sqrt{2\lambda k_B T_j(t)} {\color{red}{dW_j(t)}} }
 $$
 
 The red part might be expressed as "Wiener Increments", satisfying $<dW_i, dW_j> = \delta_{i,j}dt$
@@ -111,32 +111,6 @@ F_N=V'(r_{N-1}).
 $$
 
 ---
-
-#### Quartic Potential
-
-Explicit form:
-
-$$
-dp_j =
-\left[
-{\color{green}{
-w^2(q_{j-1}-2q_j+q_{j+1})
-+
-\beta\left((q_{j-1}-q_j)^3-(q_j-q_{j+1})^3\right)
-}}
--\lambda v(t)
-\right]dt
-+
-\sqrt{2\lambda k_B T_j(t)}\,dW_j
-$$
-
-
-#### Josephson Potential
-Explicit Form:
-
-$$
-dp_j = {[E_J \sin(q_{j-1} - q_j) - E_J \sin(q_{j} - q_{j+1}) - \lambda v(t)]}dt +  \sqrt{2\lambda k_B T_j(t)} dWj
-$$
 
 #### Thermal Bath
 At the left end, a dissipation and random energy injection is provided with:
@@ -183,20 +157,11 @@ $$
 ###### Local Energy (symmetric)
 
 $$
-e_j = \frac{p_j^2}{2m} + 0.5V(r_j) + 0.5V(r_{j+1})
+e_j = \frac{p_j^2}{2m} + 0.5V(r_{j-1}) + 0.5V(r_{j})
 $$
 
 $$H(t) = \sum _j <e_j(t)>$$
 
-###### Scaling
-
-$$
-\sigma^2 = \frac{\sum_j(j-\bar{j})^2 \Delta e_j(t)}{\sum_j \Delta e_j(t)}
-$$
-
-$$
-\sigma^2 \propto t^{\alpha}
-$$
 
 For $T=0 $ and $\lambda =0$ (only Quartic Potential) global energy conservation can be tested.
 
@@ -298,6 +263,10 @@ micromamba activate langevin_dynamics
 
 ### of the GPU implementation
 
+>**Summary:** Most solvers are bounded by their demand and process in memory. A lot of effort went into the design choice of the GPU backend. Therefore we can proudly say, that the solvers memory demand is **independent** of `N_ensemble` and `N_t`. A hard bound is only set for N < 6144 (or <12 288 if Block shared memory opt in - but with less block prallelism and therfore to avoid) (CUDA V100 7.0 architecture). All other parameters (`batch_size`, `threads_per_block`) have to be tested for their optimal values. batch_size should correlate with N; threads_per_block with N for extract_observables() and with current_batch_size for perform_reduction()
+
+>TODO: either runtime fixed and determined by N and current_batch_size, or compile time fixed generic sweet spots. (HPC wise stronger probably the later)
+
 #### Block `__shared__` memory
 
 Scales with
@@ -317,23 +286,27 @@ N = 8,000  → 64 KB per block
 
 Concretely for the `Tesla V100-SXM2-32GB`:
 
-Theoretically 96KB, but practically (source: CUDA): 48 KiB. So this alone requires:
+Theoretically 96KB, but CUDA hard set it statically to 48KB (source: [CUDA](https://docs.nvidia.com/cuda/volta-tuning-guide/index.html)). The 96KB would have to be required manually with `cudaFuncAttributeMaxDynamicSharedMemorySize`. With 48KB this requires:
 
 ```
 N < 6144
 ```
+One SM on V100 has 96KB shared memory.
+Block has 48KB, but with `cudaFuncAttributeMaxDynamicSharedMemorySize` can have the full 96KB.
 
 Practically, we can assume
 
 ```
 shared per block     theoretical blocks per SM from shared memory alone
-8 KiB                up to 12
-16 KiB               up to 6
-24 KiB               up to 4
-32 KiB               up to 3
-48 KiB               up to 2
->48 KiB              usually 1
+8 KB                up to 12
+16 KB               up to 6
+24 KB               up to 4
+32 KB               up to 3
+48 KB               up to 2
+>48 KB              usually 1
 ```
+
+The number of blocks per SM is further limited by the maximum number of threads ands warps per SM (and register use).
 
 >TODO: Test sensitivity on runtime (Block parallelism) for N>1000.
 
@@ -418,4 +391,20 @@ The `batch_size` should be chosen small enough to keep global memory small enoug
 The optimum will depend on how many trajectory blocks can reside on each SM, which depends strongly on N, shared memory, and register use.
 
 >TODO: Test for optimal `threads_per_block`. Must be multiple of 32. Maybe perform_reduction should use a different threads_per_block setting since it is more dependent on current_batch_size, then N.
+
+#### RNG generation
+
+Every batch has #batch_size rng states -> those live only on thread0, but EVERY thread might reserve the memory for this state and therefore limit thread register usage. An array [batch_size * steps_this_intervall] might be preferrable if steps_this_intervall is not too big.
+
+Inspect register use with 
+```
+--ptxas-options=-v
+````
+
+
+>TODO: Create spread measurement:
+Define threshold and see progression.
+
+>TODO: inspect EJ and T coupling. Later also inspect if qualitative beaviour changes with N.
+
 
