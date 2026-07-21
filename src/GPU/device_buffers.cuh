@@ -3,11 +3,9 @@
 #include "cuda_check.hpp"
 
 #include <cstddef>
+#include <stdexcept>
 #include <utility>
 #include <vector>
-#include <cstdlib>
-#include <iostream>
-#include <stdexcept>
 
 #include <cuda_runtime.h>
 
@@ -19,12 +17,15 @@ template <class T> class DeviceBuffer {
 
     ~DeviceBuffer() { release(); }
 
+    // no copy of instantiated DeviceBuffer is allowed
     DeviceBuffer(const DeviceBuffer &) = delete;
     DeviceBuffer &operator=(const DeviceBuffer &) = delete;
 
+    // move ownership from other to new object
     DeviceBuffer(DeviceBuffer &&other) noexcept
         : data_(std::exchange(other.data_, nullptr)), count_(std::exchange(other.count_, 0)) {}
 
+    // transfer ownership from other to an already existing DeviceBuffer
     DeviceBuffer &operator=(DeviceBuffer &&other) noexcept {
         if (this != &other) {
             release();
@@ -36,13 +37,10 @@ template <class T> class DeviceBuffer {
 
     void allocate(std::size_t count) {
         release();
-
         if (count == 0) {
             return;
         }
-
         CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&data_), count * sizeof(T)));
-
         count_ = count;
     }
 
@@ -56,32 +54,28 @@ template <class T> class DeviceBuffer {
         if (count > count_) {
             throw std::out_of_range("DeviceBuffer::copy_to_host count exceeds allocation");
         }
-
         CUDA_CHECK(cudaMemcpy(destination, data_, count * sizeof(T), cudaMemcpyDeviceToHost));
     }
-
+    // copy_to_host overload
     void copy_to_host(std::vector<T> &destination) const {
         if (destination.size() > count_) {
             throw std::out_of_range("Host vector is larger than device allocation");
         }
-
-        copy_to_host(destination.data(), destination.size());
+        copy_to_host(destination.data(), destination.size());   // calls copy_to_host above
     }
 
     void copy_from_host(const T *source, std::size_t count) {
         if (count > count_) {
             throw std::out_of_range("DeviceBuffer::copy_from_host count exceeds allocation");
         }
-
         CUDA_CHECK(cudaMemcpy(data_, source, count * sizeof(T), cudaMemcpyHostToDevice));
     }
 
+    // getter functions
+    // [[nodiscard]] -> compiler instruction to warn if the returned * is not used further
     [[nodiscard]] T *data() noexcept { return data_; }
-
     [[nodiscard]] const T *data() const noexcept { return data_; }
-
     [[nodiscard]] std::size_t size() const noexcept { return count_; }
-
     [[nodiscard]] std::size_t bytes() const noexcept { return count_ * sizeof(T); }
 
   private:
