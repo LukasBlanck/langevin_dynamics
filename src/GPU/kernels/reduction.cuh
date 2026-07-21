@@ -14,6 +14,12 @@
 
 #include <cuda_runtime.h>
 
+struct Observables {
+    double total_energy;
+    double potential_energy;
+    double kinetic_energy;
+};
+
 __global__ inline void perform_reduction(double *tot_e_temporary, double *pot_e_temporary,
                                          double *kin_e_temporary, double *tot_e, double *pot_e,
                                          double *kin_e, const int current_batch_size, const int N,
