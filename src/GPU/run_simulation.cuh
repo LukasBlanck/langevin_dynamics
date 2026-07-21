@@ -131,6 +131,13 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     double *d_qj2 = nullptr;
     double *d_q02 = nullptr;
 
+    double *d_rj0 = nullptr;
+    double *d_rj = nullptr;
+    double *d_r0 = nullptr;
+
+    double *d_rj2 = nullptr;
+    double *d_r02 = nullptr;
+
     // rng device allocation
     curandStatePhilox4_32_10_t *d_rng_states = nullptr; // rng state (persistent per trajectory)
     CUDA_CHECK(
@@ -192,6 +199,17 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_q02),
                           static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
+    UDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj0),
+                         static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_r0),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_rj2),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_r02),
+                          static_cast<std::size_t>(N) * n_save * sizeof(double)));
+
     CUDA_CHECK(cudaMemset(d_tot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_pot_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_kin_e, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
@@ -209,6 +227,13 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     CUDA_CHECK(cudaMemset(d_qj2, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
     CUDA_CHECK(cudaMemset(d_q02, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+
+    CUDA_CHECK(cudaMemset(d_rj0, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_rj, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_r0, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+
+    CUDA_CHECK(cudaMemset(d_rj2, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
+    CUDA_CHECK(cudaMemset(d_r02, 0, static_cast<std::size_t>(N) * n_save * sizeof(double)));
 
     // TODO:
     // at n_save_index=10 a ETA?
@@ -250,6 +275,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
             d_p, d_pj0, d_pj, d_p0, d_pj2, d_p02, N, current_batch_size, n_save_index);
         pearson_reduction<<<N, threads_per_block, pearson_reduction_shared_bytes>>>(
             d_q, d_qj0, d_qj, d_q0, d_qj2, d_q02, N, current_batch_size, n_save_index);
+        pearson_reduction<<<N, threads_per_block, pearson_reduction_shared_bytes>>>(
+            d_q, d_rj0, d_rj, d_r0, d_rj2, d_r02, N_bond, current_batch_size, n_save_index);
 
         // launch N blocks - one block is one site
         perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
@@ -281,6 +308,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
                 d_p, d_pj0, d_pj, d_p0, d_pj2, d_p02, N, current_batch_size, n_save_index);
             pearson_reduction<<<N, threads_per_block, pearson_reduction_shared_bytes>>>(
                 d_q, d_qj0, d_qj, d_q0, d_qj2, d_q02, N, current_batch_size, n_save_index);
+            pearson_reduction<<<N, threads_per_block, pearson_reduction_shared_bytes>>>(
+                d_q, d_rj0, d_rj, d_r0, d_rj2, d_r02, N_bond, current_batch_size, n_save_index);
 
             // launch N blocks - one block is one site
             perform_reduction<<<N, threads_per_block, reduction_shared_bytes>>>(
@@ -316,7 +345,32 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaMemcpy(p02.data(), d_p02, static_cast<std::size_t>(N) * n_save * sizeof(double),
                           cudaMemcpyDeviceToHost));
 
+    CUDA_CHECK(cudaMemcpy(qj0.data(), d_qj0, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(qj.data(), d_qj, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(q0.data(), d_q0, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(qj2.data(), d_qj2, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(q02.data(), d_q02, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+
+    CUDA_CHECK(cudaMemcpy(rj0.data(), d_rj0, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(rj.data(), d_rj, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(r0.data(), d_r0, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(rj2.data(), d_rj2, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(r02.data(), d_r02, static_cast<std::size_t>(N) * n_save * sizeof(double),
+                          cudaMemcpyDeviceToHost));
+
     // free GPU
+    CUDA_CHECK(cudaFree(d_p));
+    CUDA_CHECK(cudaFree(d_q));
+
     CUDA_CHECK(cudaFree(d_tot_e));
     CUDA_CHECK(cudaFree(d_tot_e_temporary));
     CUDA_CHECK(cudaFree(d_pot_e));
@@ -324,12 +378,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     CUDA_CHECK(cudaFree(d_kin_e));
     CUDA_CHECK(cudaFree(d_kin_e_temporary));
 
-    CUDA_CHECK(cudaFree(d_p));
-    CUDA_CHECK(cudaFree(d_q));
-    
-    const double inv_ensemble = 1.0 / static_cast<double>(N_ensemble);
-    
     // Normalize by N_ensemble
+    const double inv_ensemble = 1.0 / static_cast<double>(N_ensemble);
     for (double &value : tot_e) {
         value *= inv_ensemble;
     }
@@ -353,10 +403,10 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // process pearson
     std::vector<double> corr_p0(n_save * N, 0.0);
     std::vector<double> corr_q0(n_save * N, 0.0);
-    // std::vector<double> corr_r0(n_save * N_bond, 0.0);
+    std::vector<double> corr_r0(n_save * N_bond, 0.0);
     process_pearson_correlators(corr_p0, pj0, pj, p0, pj2, p02, n_save, N, inv_ensemble);
     process_pearson_correlators(corr_q0, qj0, qj, q0, qj2, q02, n_save, N, inv_ensemble);
-    // process_pearson_correlators(corr_r0, rj0, rj, r0, rj2, r02, n_save, N_bond, inv_ensemble);
+    process_pearson_correlators(corr_r0, rj0, rj, r0, rj2, r02, n_save, N_bond, inv_ensemble);
 
     // for now compute time on host
     for (int save_index = 1; save_index < n_save; ++save_index) {
@@ -403,6 +453,9 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     writer.write_time_site_array("pearson_position_correlation",
                                  "Pearson position correlation with left boundary (site at 0)",
                                  "dimensionless", corr_q0);
+    writer.write_time_bond_array("pearson_bond_correlation",
+                                 "Pearson bond displacement correlation with left boundary bond",
+                                 "dimensionless", corr_r0);
 
     // simulation finished
     std::cout << "Finished simulation.\n";
