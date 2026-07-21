@@ -1,4 +1,4 @@
-#include "potentials.hpp"
+#include "../../src/potentials.hpp"
 #include "test_helpers.hpp"
 #include <array>
 #include <cstddef>

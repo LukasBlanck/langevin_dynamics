@@ -157,7 +157,7 @@ if (BUILD_TESTING AND NOT BUILD_GPU)
     include(CTest)
 
     file(GLOB TEST_SOURCES CONFIGURE_DEPENDS
-        ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp)
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/CPU/*.cpp)
     if(TEST_SOURCES)
         include(FetchContent)
 
@@ -178,6 +178,11 @@ if (BUILD_TESTING AND NOT BUILD_GPU)
 
         add_executable(langevin_tests   # test executable
             ${TEST_SOURCES}
+        )
+
+        target_include_directories(langevin_tests
+            BEFORE PRIVATE
+                "${googletest_SOURCE_DIR}/googletest/include"   # force compiler to use the cmake linked gtest header
         )
 
         target_link_libraries(langevin_tests

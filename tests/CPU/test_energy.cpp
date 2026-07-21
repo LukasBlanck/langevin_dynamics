@@ -1,6 +1,6 @@
-#include "BAOAB.hpp"
-#include "input/input.hpp"
-#include "potentials.hpp"
+#include "../../src/CPU/BAOAB.hpp"
+#include "../../src/input/input.hpp"
+#include "../../src/potentials.hpp"
 #include "test_helpers.hpp"
 #include <algorithm>
 #include <cmath>

@@ -1,9 +1,9 @@
 // this file runs the BAOAB solver and tests, whether the ensemble observables converge with at
 // least order of two
 
-#include "BAOAB.hpp"
-#include "input/input.hpp"
-#include "potentials.hpp"
+#include "../../src/CPU/BAOAB.hpp"
+#include "../../src/input/input.hpp"
+#include "../../src/potentials.hpp"
 #include "test_helpers.hpp"
 #include "gtest/gtest.h"
 #include <cmath>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "input/input.hpp"
+#include "../../src/input/input.hpp"
 #include <vector>
 
 inline Config create_config() {
