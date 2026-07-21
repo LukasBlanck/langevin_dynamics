@@ -326,16 +326,18 @@ inline void run_simulation(const Config &config, const std::string &output_path)
 
     CUDA_CHECK(cudaFree(d_p));
     CUDA_CHECK(cudaFree(d_q));
-
-    // Normalize by N_ensemble.
+    
+    const double inv_ensemble = 1.0 / static_cast<double>(N_ensemble);
+    
+    // Normalize by N_ensemble
     for (double &value : tot_e) {
-        value /= static_cast<double>(N_ensemble);
+        value *= inv_ensemble;
     }
     for (double &value : pot_e) {
-        value /= static_cast<double>(N_ensemble);
+        value *= inv_ensemble;
     }
     for (double &value : kin_e) {
-        value /= static_cast<double>(N_ensemble);
+        value *= inv_ensemble;
     }
 
     // Compute derived observables.
