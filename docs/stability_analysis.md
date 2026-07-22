@@ -97,8 +97,7 @@ $$
 where
 
 $$
-\left\{
-V''(r):
+\left\{V''(r):
 r\in[r_{\min},r_{\max}]
 \right\}.
 $$
@@ -106,12 +105,7 @@ $$
 Assuming a Lipschitz bounded force, we can use this as a global stability condition for $r\in R$:
 
 $$
-\boxed{
-k_{\max}
-=
-\sup_{r\in[r_{\min},r_{\max}]}
-|V''(r)|.
-}
+\boxed{ k_{\max} = \sup_{r\in[r_{\min},r_{\max}]} |V''(r)|}
 $$
 
 ---
@@ -125,25 +119,25 @@ $$
 Since 
 
 $$
--V''(r_*) = f'(r_*)
+-V''(r_{*}) = f'(r_{*})
 $$
 
 we write the linearized force:
 
 $$
-f(r_* + \delta r) = f(r_*) - V''(r_*)\delta r 
+f(r_{*} + \delta r) = f(r_{*}) - V''(r_{*})\delta r 
 $$
 
 This is now again a Hooke-type force of homogenous part:
 
 $$
-m\ddot{\delta r} = - V''(r_*)\delta r 
+m\ddot{\delta r} = - V''(r_{*})\delta r 
 $$
 
 and inhomogeneous part:
 
 $$
-m\ddot{\delta r} = - f(r_*)
+m\ddot{\delta r} = - f(r_{*})
 $$
 
 We can write the homogeneous part as:
@@ -156,7 +150,7 @@ with analog solution
 
 $$
 \boxed{
-\omega_*^2=\frac{V''(r_*)}{m}.
+\omega_{*}^2=\frac{V''(r_{*})}{m}.
 }
 $$
 
@@ -260,11 +254,13 @@ $$
 $$
 
 Differentiating once more gives
+
 $$
 H(q)=\nabla^2U(q)=B^T W(q)B
 $$
 
 where
+
 $$
 W(q)=\operatorname{diag}
 \left(
@@ -298,7 +294,6 @@ k_1&0&\cdots&0\\
 \vdots&&\ddots&\ddots&\vdots\\
 0&\cdots&0&1&-1
 \end{pmatrix} 
-
 $$
 
 Therefore
@@ -455,12 +450,7 @@ $$
 We know from [Courant-Fischer-Theorem](https://en.wikipedia.org/wiki/Min-max_theorem), that the biggest Rayleigh Quotient is the biggest Eigenvalue for real symmetric Matrices:
 
 $$
-\boxed{
-\max_{x\neq0}
-\frac{|x^THx|}{x^Tx}
-=
-\max_i|\lambda_i(H)|
-}
+\boxed{ \max_{x\neq0} \frac{|x^THx|}{x^Tx} = \max_i|\lambda_i(H)| }
 $$
 
 
