@@ -7,7 +7,7 @@ We have two Potentials:
 |---|---|
 | Josephson | FPU |
 
-These two properties are also valid for their curvatures/stiffnesses/second_derivatives and are important when analysing our Verlet Algorithm [BAOAB](docs/BAOAB.md) for a global stability bound.
+These two properties are also valid for their curvatures/stiffnesses/second_derivatives and are important when analysing our Verlet Algorithm [BAOAB](BAOAB.md) for a global stability bound.
 
 ---
 
