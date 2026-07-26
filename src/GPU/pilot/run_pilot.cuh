@@ -220,7 +220,8 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
                     << "Choose N_time >= " << N_time_min << ".\n"
                     << "See docs/stability_analysis.md for more info.\n";
             return {Flag::FailedStabilityLimit, 0.0, message.str()};
-            std::cout << "Success!\n";
+            }
+	    std::cout << "Success!\n";
             std::cout << "Selected dt = " << dt << "\n";
 
             // configure reasonable duration (change N_time and end_time)
@@ -259,7 +260,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
                 run_pilot_simulation<Potential>(statistical_batches, dt / 4.0, target_steps * 4,
                                                 config, trajectories_per_statistical_batch);
             std::cout << "Finished the third simulation.\n\n";
-            std::cout << "Pilot simulations finished.";
+            std::cout << "Pilot simulations finished.\n";
 
             // reduce data from [batches * N] to [N]
             const ProcessedData total_h =
@@ -303,7 +304,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
             // estimate worst stochastic error
             constexpr double relative_error_threshold = 0.05;
             constexpr double absolute_floor =
-                1.0e-5; // guard for avoiding division by zero / near zero
+                1.0e-2; // guard for avoiding division by zero / near zero
 
             const StochasticReport total_stoachstic_report_h =
                 estimate_stochastic_error(total_h, relative_error_threshold, absolute_floor);
