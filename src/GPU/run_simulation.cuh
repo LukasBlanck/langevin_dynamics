@@ -27,7 +27,7 @@
 // Block - trajectory
 // per batch:
 // integrate up to save every
-// store observables    mem: [batch_size * N]
+// store temporary observables    mem: [batch_size * N]
 // reduction kernel: reduces batch_size Blocks to N in mem:[n_save * N] Matrix
 
 // strided LOOP:
@@ -93,8 +93,8 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // bytes of shared memory on block
     const std::size_t shared_bytes = static_cast<std::size_t>(N) * sizeof(double);
     const int num_of_observables =
-        3; // in the simplest form this is really the number of observables, but with later HPC
-           // improvements the number can be smaller then the number of observables
+        3; // in the simplest form this is really the number of observables, but with later
+           // HPC improvements the number can be smaller then the number of observables
     const std::size_t reduction_shared_bytes =
         static_cast<std::size_t>(threads_per_block) * num_of_observables * sizeof(double);
     const int num_of_pearson_observables = 5;
@@ -130,14 +130,20 @@ inline void run_simulation(const Config &config, const std::string &output_path)
     // allocate ALL simulation buffers
     DeviceSimulationBuffers device{
         temporary_size, final_size, bond_size,
-        batch_size}; // allocates ALL temporaray: q, p, tot, pot, kin of size [batch_size * N] and
-                     // ALL final: tot, pot, kin, 5*pearson*3 of size [n_save*N] and
-                     // the rng_states of size [batch_size]
+        batch_size}; // allocates ALL temporaray: q, p, tot, pot, kin of size
+                     // [batch_size * N] and ALL final: tot, pot, kin, 5*pearson*3
+                     // of size [n_save*N] and the rng_states of size [batch_size]
 
     // TODO:
     // at n_save_index=10 a ETA?
     // add timing?
     // here maybe stable dt calculation? or seperate with stable dt at runtime?
+
+    // TODO: (only maybe - probably not)
+    // add a production run monitoring of r_max -> if dt >= sqrt(m / (kappa + 3betar^2))
+    // or in simul terms: dt >= sqrt(m / (omega + 3betar^2)) -> throw run_time_error ("stable dt
+    // bound exceeded") --- but this is only interesting for FPU, since the Josephson is much
+    // more interesting to us, maybe don't need that?
 
     // -----------------------------------------------------------------------
     // -------------------
