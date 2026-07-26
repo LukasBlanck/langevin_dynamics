@@ -5,6 +5,7 @@
 #include "run_pilot_simulation.cuh"
 #include <cmath>
 #include <cstddef>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -175,19 +176,30 @@ inline StochasticReport estimate_stochastic_error(const ProcessedData &processed
 inline void print_stochastic_report(const char *name, const ProcessedData &data,
                                     const StochasticReport &report) {
     const std::size_t i = report.worst_index;
+    constexpr int label_width = 20;
 
-    std::cout << name << ": passed = " << std::boolalpha << report.passed << ", worst index = " << i
-              << ", mean = " << data.mean[i] << ", sigma_batch = " << data.standard_deviation[i]
-              << ", SE = " << data.standard_error[i]
-              << ", 2SE/scale = " << report.worst_relative_error << '\n';
+    std::cout << name << std::left << std::setw(label_width) << ": passed = " << std::boolalpha
+              << report.passed << "\n"
+              << std::left << std::setw(label_width) << "--worst index = " << i << "\n"
+              << std::left << std::setw(label_width) << "--mean = " << data.mean[i] << "\n"
+              << std::left << std::setw(label_width)
+              << "--sigma_batch = " << data.standard_deviation[i] << "\n"
+              << std::left << std::setw(label_width) << "SE = " << data.standard_error[i] << "\n"
+              << std::left << std::setw(label_width)
+              << "--2SE/scale = " << report.worst_relative_error << '\n';
 }
 
 inline void print_time_report(const char *name, const TimeDiscretizationReport &report) {
-    std::cout << name << ": passed = " << std::boolalpha << report.passed
-              << ", worst index = " << report.worst_index
-              << ", relative discrepancy = " << report.worst_relative_difference
-              << ", absolute difference = " << report.worst_absolute_difference
-              << ", difference SE = " << report.worst_difference_standard_error << '\n';
+    constexpr int label_width = 20;
+    std::cout << name << ": passed = " << std::boolalpha << report.passed << "\n"
+              << std::left << std::setw(label_width) << "--worst index = " << report.worst_index
+              << "\n"
+              << std::left << std::setw(label_width)
+              << "--relative discrepancy = " << report.worst_relative_difference << "\n"
+              << std::left << std::setw(label_width)
+              << "--absolute difference = " << report.worst_absolute_difference << "\n"
+              << std::left << std::setw(label_width)
+              << "--difference SE = " << report.worst_difference_standard_error << '\n';
 }
 
 template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
@@ -200,7 +212,6 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
     const int N = config.grid.N;
 
     const double m = config.conventions.m;
-    const double kB = config.conventions.kB;
 
     const double end_time = config.time.end_time;
     const int N_time = config.time.N;

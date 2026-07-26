@@ -26,22 +26,7 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 
-// layout:
-// Block - trajectory
-// per batch:
-// integrate up to save every
-// store temporary observables    mem: [batch_size * N]
-// reduction kernel: reduces batch_size Blocks to N in mem:[n_save * N] Matrix
-
-// strided LOOP:
-// Block always 256 threads, then
-// for (std::size_t site = threadIdx.x;
-//      site < N;
-//      site += blockDim.x) {
-//     // Process site.
-// }
-
-// ALL buffers necessary for the simulation
+// ALL buffers necessary for the pilot simulation
 struct DevicePilotSimulationBuffers {
     DeviceBuffer<double> q;
     DeviceBuffer<double> p;
@@ -150,11 +135,6 @@ inline SimulationResults run_pilot_simulation(const int statistical_batches, con
                      // [batch_size * N] and ALL final: tot, pot, kin,
                      // of size [statistical_batches*N] and the rng_states of size [batch_size]
 
-    // ETA
-    const int eta_sample = 10; // number of n_save_index
-    const auto wall_start = std::chrono::steady_clock::now();
-    bool eta_printed = false;
-
     // -----------------------------------------------------------------------
     // -------------------
     // |   INTEGRATION   |
@@ -216,23 +196,6 @@ inline SimulationResults run_pilot_simulation(const int statistical_batches, con
                 statistical_batch_index);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
-
-            // ETA
-            // if (!eta_printed && statistical_batch_index >= eta_sample) {
-            //     const double elapsed =
-            //         std::chrono::duration<double>(std::chrono::steady_clock::now() - wall_start)
-            //             .count();
-            //     const double progress =
-            //         (static_cast<double>(batch_begin) * N_time +
-            //          static_cast<double>(current_batch_size) * completed_steps) /
-            //         (static_cast<double>(N_ensemble) * N_time);
-            //     const long long eta = static_cast<long long>(elapsed * (1.0 - progress) /
-            //     progress); std::cout << "ETA: " << eta / 60 << ":" << std::setw(2) <<
-            //     std::setfill('0')
-            //               << eta % 60 << " min:s" << std::setfill(' ') << "\n\n"
-            //               << std::flush;
-            //     eta_printed = true;
-            // }
         }
     }
 
@@ -250,39 +213,6 @@ inline SimulationResults run_pilot_simulation(const int statistical_batches, con
     }
     for (double &value : host_energy.kinetic) {
         value *= inv_statistical_batch;
-    }
-
-    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%"
-              << "\n verify manually the pilot GPU results:\n";
-    for (int batch = 0; batch < statistical_batches; ++batch) {
-        const std::size_t offset = static_cast<std::size_t>(batch) * static_cast<std::size_t>(N);
-
-        double total_row_energy = 0.0;
-        double minimum_energy = std::numeric_limits<double>::infinity();
-        double maximum_energy = -std::numeric_limits<double>::infinity();
-
-        for (int site = 0; site < N; ++site) {
-            const double value = host_energy.total[offset + static_cast<std::size_t>(site)];
-
-            if (!std::isfinite(value)) {
-                throw std::runtime_error("Non-finite total energy in statistical batch " +
-                                         std::to_string(batch) + ", site " + std::to_string(site));
-            }
-
-            total_row_energy += value;
-            minimum_energy = std::min(minimum_energy, value);
-            maximum_energy = std::max(maximum_energy, value);
-        }
-
-        std::cout << "batch " << batch << ": sum(E) = " << total_row_energy
-                  << ", min(E) = " << minimum_energy << ", max(E) = " << maximum_energy << '\n';
-
-        if (!(total_row_energy > 0.0) || !std::isfinite(total_row_energy)) {
-
-            throw std::runtime_error("Cannot normalize non-positive or non-finite "
-                                     "energy profile in batch " +
-                                     std::to_string(batch));
-        }
     }
 
     // Compute derived observables.
