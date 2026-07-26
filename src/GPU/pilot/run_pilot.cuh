@@ -173,33 +173,69 @@ inline StochasticReport estimate_stochastic_error(const ProcessedData &processed
     return report;
 }
 
-inline void print_stochastic_report(const char *name, const ProcessedData &data,
-                                    const StochasticReport &report) {
-    const std::size_t i = report.worst_index;
-    constexpr int label_width = 20;
+inline void print_stochastic_report(
+    const char* name,
+    const ProcessedData& data,
+    const StochasticReport& report)
+{
+    constexpr int indent_width = 4;
+    constexpr int label_width = 15;
 
-    std::cout << name << std::left << std::setw(label_width) << ": passed = " << std::boolalpha
-              << report.passed << "\n"
-              << std::left << std::setw(label_width) << "--worst index = " << i << "\n"
-              << std::left << std::setw(label_width) << "--mean = " << data.mean[i] << "\n"
-              << std::left << std::setw(label_width)
-              << "--sigma_batch = " << data.standard_deviation[i] << "\n"
-              << std::left << std::setw(label_width) << "SE = " << data.standard_error[i] << "\n"
-              << std::left << std::setw(label_width)
-              << "--2SE/scale = " << report.worst_relative_error << '\n';
+    const std::string indent(indent_width, ' ');
+    const std::size_t i = report.worst_index;
+
+    std::cout
+        << '\n'
+        << indent << "---------------\n"
+        << indent << name << '\n'
+        << indent << std::left
+        << std::setw(label_width) << "Passed:"
+        << std::boolalpha << report.passed << '\n'
+        << indent
+        << std::setw(label_width) << "Worst index:"
+        << i << '\n'
+        << indent
+        << std::setw(label_width) << "Mean:"
+        << data.mean[i] << '\n'
+        << indent
+        << std::setw(label_width) << "Sigma batch:"
+        << data.standard_deviation[i] << '\n'
+        << indent
+        << std::setw(label_width) << "SE:"
+        << data.standard_error[i] << '\n'
+        << indent
+        << std::setw(label_width) << "2SE/scale:"
+        << report.worst_relative_error << '\n';
 }
 
-inline void print_time_report(const char *name, const TimeDiscretizationReport &report) {
-    constexpr int label_width = 20;
-    std::cout << name << ": passed = " << std::boolalpha << report.passed << "\n"
-              << std::left << std::setw(label_width) << "--worst index = " << report.worst_index
-              << "\n"
-              << std::left << std::setw(label_width)
-              << "--relative discrepancy = " << report.worst_relative_difference << "\n"
-              << std::left << std::setw(label_width)
-              << "--absolute difference = " << report.worst_absolute_difference << "\n"
-              << std::left << std::setw(label_width)
-              << "--difference SE = " << report.worst_difference_standard_error << '\n';
+inline void print_time_report(
+    const char* name,
+    const TimeDiscretizationReport& report)
+{
+    constexpr int indent_width = 4;
+    constexpr int label_width = 24;
+
+    const std::string indent(indent_width, ' ');
+
+    std::cout
+        << '\n'
+        << indent << "----------------\n"
+        << indent << name << '\n'
+        << indent << std::left
+        << std::setw(label_width) << "Passed:"
+        << std::boolalpha << report.passed << '\n'
+        << indent
+        << std::setw(label_width) << "Worst index:"
+        << report.worst_index << '\n'
+        << indent
+        << std::setw(label_width) << "Relative discrepancy:"
+        << report.worst_relative_difference << '\n'
+        << indent
+        << std::setw(label_width) << "Absolute difference:"
+        << report.worst_absolute_difference << '\n'
+        << indent
+        << std::setw(label_width) << "Difference SE:"
+        << report.worst_difference_standard_error << '\n';
 }
 
 template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
@@ -286,7 +322,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         pilot_h4 = run_pilot_simulation<Potential>(statistical_batches, dt / 4.0, target_steps * 4,
                                                    config, trajectories_per_statistical_batch);
         std::cout << "Finished the third simulation.\n\n";
-        std::cout << "Pilot simulations finished.\n";
+        std::cout << "Pilot simulations finished.\n\n";
 
         // reduce data from [batches * N] to [N]
         const ProcessedData total_h =
@@ -326,7 +362,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         // --------------------------
         // |    STOCHASTIC ERROR    |
         // --------------------------
-        std::cout << "2. Checking stochastic error...";
+        std::cout << "\n2. Checking stochastic error...";
         // estimate worst stochastic error
         constexpr double relative_error_threshold = 0.03;
         constexpr double absolute_floor = 1.0e-2; // guard for avoiding division by zero / near zero
@@ -379,9 +415,10 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
             spread_stochastic_report_h4.passed;
 
         // stochastic reports
-        print_stochastic_report("total_h", total_h, total_stoachstic_report_h);
-        print_stochastic_report("mean_h", mean_h, mean_stoachstic_report_h);
-        print_stochastic_report("spread_h", spread_h, spread_stoachstic_report_h);
+	std::cout << "\n\n=======Stochastic Report=======\n";
+        print_stochastic_report("total energy h", total_h, total_stoachstic_report_h);
+        print_stochastic_report("mean energy h", mean_h, mean_stoachstic_report_h);
+        print_stochastic_report("spread of energy h", spread_h, spread_stoachstic_report_h);
 
         if ((stochastic_error_small_enough_h && !stochastic_error_small_enough_h2) |
             (stochastic_error_small_enough_h && !stochastic_error_small_enough_h4)) {
@@ -397,7 +434,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         // --------------------
         // |    TIME ERROR    |
         // --------------------
-        std::cout << "3. Checking time error...";
+        std::cout << "\n\n\n3. Checking time error...";
         constexpr double time_tolerance = 0.05; // must be bigger then stoochastic rel_err threshold
 
         const TimeDiscretizationReport total_time_h2_h4 =
@@ -417,11 +454,12 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
                                  spread_time_h2_h4.passed;
 
         // print h2_h4 report
-        print_time_report("total h2-h4", total_time_h2_h4);
-        print_time_report("kinetic h2-h4", kinetic_time_h2_h4);
-        print_time_report("potential h2-h4", potential_time_h2_h4);
-        print_time_report("mean h2-h4", mean_time_h2_h4);
-        print_time_report("spread h2-h4", spread_time_h2_h4);
+	std::cout << "\n\n========Time Report========\n";
+        print_time_report("total energy h2_h4", total_time_h2_h4);
+        print_time_report("kinetic energy h2_h4", kinetic_time_h2_h4);
+	print_time_report("potential energy h2_h4", potential_time_h2_h4);
+	print_time_report("mean energy h2_h4", mean_time_h2_h4);
+        print_time_report("spread of energy h2_h4", spread_time_h2_h4);
 
         // if this already fails, then h2 does not resolve fine enough
         if (!h2_h4_agree) {
@@ -447,14 +485,14 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
                                 spread_time_h_h2.passed;
         // if h does not agrees with h2
         if (!h_h2_agree) {
-            std::cout << "h doesn't resolve the simulation, but h2 agreed with h4. Calculating h8 "
-                         "to verify...";
+            std::cout << "\n\nh doesn't resolve the simulation, but h2 agreed with h4. Calculating h8 "
+                         "to verify...\n";
             SimulationResults pilot_h8;
             std::cout << "Running the simulation with dt = " << dt / 8.0 << "\n";
             pilot_h8 =
                 run_pilot_simulation<Potential>(statistical_batches, dt / 8.0, target_steps * 8,
                                                 config, trajectories_per_statistical_batch);
-            std::cout << "Finished the pilot simulation.\n\n";
+            std::cout << "Finished the pilot h8 simulation.\n\n";
 
             const ProcessedData total_h8 =
                 process_simulation_data(pilot_h8.total_energy, statistical_batches, N);

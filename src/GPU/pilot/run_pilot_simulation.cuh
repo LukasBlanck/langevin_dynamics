@@ -64,8 +64,6 @@ inline SimulationResults run_pilot_simulation(const int statistical_batches, con
     const double end_time = target_steps * dt;
     const int N_time = end_time / dt;
 
-    const int N_ensemble = config.ensemble.N;
-
     const double left_bath_T = config.model.left_bath_T;
     const double gamma = config.model.lambda / m;
 
