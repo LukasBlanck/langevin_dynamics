@@ -9,9 +9,9 @@
 #include "../../GPU/kernels/rng.cuh"
 #include "../../input/input.hpp"
 #include "../../io/netCDF_writer.hpp"
+#include "../cuda_check.hpp"
 #include "../host_device/copy_data.hpp"
 #include "../host_device/structs.hpp"
-#include "../cuda_check.hpp"
 #include "../process/helpers.hpp"
 #include <algorithm>
 #include <chrono>
@@ -21,6 +21,8 @@
 #include <iomanip>
 #include <iostream>
 #include <vector>
+#include <limits>
+
 
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -191,9 +193,9 @@ inline SimulationResults run_pilot_simulation(const int statistical_batches, con
                 device.rng_states.data(), static_cast<unsigned long long>(seed),
                 global_trajectory_begin, current_batch_size);
             CUDA_CHECK(cudaGetLastError());
-            CUDA_CHECK(cudaDeviceSynchronize());    // delete after ensured correctness
+            CUDA_CHECK(cudaDeviceSynchronize()); // delete after ensured correctness
 
-            const int steps_this_interval = target_steps;   // integrate to end_time
+            const int steps_this_interval = target_steps; // integrate to end_time
             integrate<Potential><<<current_batch_size, threads_per_block, shared_bytes>>>(
                 device.p.data(), device.q.data(), device.rng_states.data(), potential,
                 current_batch_size, N, steps_this_interval, m, eta, c, dt);
@@ -249,6 +251,39 @@ inline SimulationResults run_pilot_simulation(const int statistical_batches, con
     }
     for (double &value : host_energy.kinetic) {
         value *= inv_statistical_batch;
+    }
+
+
+    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%" << "\n verify manually the pilot GPU results:\n"
+    for (int batch = 0; batch < statistical_batches; ++batch) {
+        const std::size_t offset = static_cast<std::size_t>(batch) * static_cast<std::size_t>(N);
+
+        double total_row_energy = 0.0;
+        double minimum_energy = std::numeric_limits<double>::infinity();
+        double maximum_energy = -std::numeric_limits<double>::infinity();
+
+        for (int site = 0; site < N; ++site) {
+            const double value = host_energy.total[offset + static_cast<std::size_t>(site)];
+
+            if (!std::isfinite(value)) {
+                throw std::runtime_error("Non-finite total energy in statistical batch " +
+                                         std::to_string(batch) + ", site " + std::to_string(site));
+            }
+
+            total_row_energy += value;
+            minimum_energy = std::min(minimum_energy, value);
+            maximum_energy = std::max(maximum_energy, value);
+        }
+
+        std::cout << "batch " << batch << ": sum(E) = " << total_row_energy
+                  << ", min(E) = " << minimum_energy << ", max(E) = " << maximum_energy << '\n';
+
+        if (!(total_row_energy > 0.0) || !std::isfinite(total_row_energy)) {
+
+            throw std::runtime_error("Cannot normalize non-positive or non-finite "
+                                     "energy profile in batch " +
+                                     std::to_string(batch));
+        }
     }
 
     // Compute derived observables.
