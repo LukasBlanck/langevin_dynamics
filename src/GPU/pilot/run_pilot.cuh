@@ -473,6 +473,12 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
             if (h4_h8_agree) {
                 std::cout << "h4 and h8 agree. Therefore h2 should already be sufficient to "
                              "resolve the simulation.";
+                if (h4_h8_agree) {
+                    return {Flag::IncreaseN_time, dt / 2.0,
+                            "h4 and h8 agree. Therefore h2 should already be sufficient to "
+                            "resolve the simulation. Use N_time >= " +
+                                std::to_string(2 * N_time) + "."};
+                }
             } else {
                 return {Flag::IncreaseN_time, 0.0,
                         "Increse N_time to at least N_time = {end_time / (dt / 8.0)}"};
