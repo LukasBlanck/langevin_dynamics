@@ -26,6 +26,15 @@ struct FPUPotential {
     // derivative dV/dr
     LANGEVIN_HD inline double dV(double r) const { return omega * omega * r + beta * r * r * r; }
 
+    inline double stability_limit(double r_max, double m) const {
+        const double curvature = omega * omega + 3.0 * beta * r_max * r_max;
+
+        if (!(curvature > 0.0)) {
+            throw std::invalid_argument("FPU curvature must be positive");
+        }
+        return std::sqrt(m / curvature);
+    }
+
     static std::string name() { return "FPU"; }
 };
 
@@ -39,6 +48,13 @@ struct JosephsonPotential {
 
     // derivative dV/dr
     LANGEVIN_HD inline double dV(double r) const { return EJ * std::sin(r); }
+
+    inline double stability_limit(double m) const {
+        if (!(m > 0.0) || !(EJ > 0.0)) {
+            throw std::invalid_argument("Mass and E_J must be positive");
+        }
+        return std::sqrt(m / EJ);
+    }
 
     static std::string name() { return "Josephson"; }
 };
