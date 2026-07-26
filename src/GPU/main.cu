@@ -20,7 +20,7 @@ int main() {
 
             // run pilot
             const PilotOutcome pilot_outcome = run_pilot<FPUPotential>(config, potential);
-            std::cout << pilot_outcome.message << "\n";
+            std::cout << pilot_outcome.message << "\n" << std::flush;
 
             // depending on pilot outcome:
             switch (pilot_outcome.decision) {

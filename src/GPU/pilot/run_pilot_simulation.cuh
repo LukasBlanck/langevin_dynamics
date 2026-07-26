@@ -11,8 +11,8 @@
 #include "../../io/netCDF_writer.hpp"
 #include "../host_device/copy_data.hpp"
 #include "../host_device/structs.hpp"
-#include "cuda_check.hpp"
-#include "process/helpers.hpp"
+#include "../cuda_check.hpp"
+#include "../process/helpers.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>

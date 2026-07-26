@@ -1,5 +1,6 @@
 // this file provides helper functions that process raw result
 // arrays [n_save * N] from the GPU on the CPU
+#pragma once
 
 #include <cstdlib>
 #include <vector>
