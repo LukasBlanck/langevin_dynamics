@@ -6,12 +6,11 @@ m = 1
 kB = 1
 
 [time]
-Nt = 10000
-end_time = 5
-save_every = 10
+Nt = 100000
+end_time = 500
 
 [ensemble]
-N = 1000
+N = 100000
 
 [model]
 omega = 1.0
