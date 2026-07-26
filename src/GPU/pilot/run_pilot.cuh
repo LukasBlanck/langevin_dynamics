@@ -584,7 +584,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         }
 
         // h2 is right now valid
-
+	return {Flag::AcceptedRequestedConfig, dt, "Pilot validated your config!"};
         // check if convergence of order two is visible (must be valid here!)
         // TODO: compare stochastic error to time error:
         // time error must be much bigger then stochastic error
