@@ -36,9 +36,15 @@ struct ProcessedData {
 struct TimeDiscretizationReport {
     bool passed = true;
 
-    double worst_relative_difference = 0.0;
+    double worst_error_ratio = 0.0;
+
     double worst_absolute_difference = 0.0;
     double worst_difference_standard_error = 0.0;
+    double worst_uncertainty_bound = 0.0;
+    double worst_allowed_difference = 0.0;
+
+    double worst_coarse_mean = 0.0;
+    double worst_fine_mean = 0.0;
 
     std::size_t worst_index = 0;
 };
@@ -46,45 +52,69 @@ struct TimeDiscretizationReport {
 inline TimeDiscretizationReport estimate_time_error(const ProcessedData &coarse,
                                                     const ProcessedData &fine,
                                                     const double relative_tolerance,
-                                                    const double absolute_floor,
+                                                    const double absolute_tolerance,
                                                     const double z_score = 2.0) {
     if (coarse.mean.size() != fine.mean.size() ||
         coarse.standard_error.size() != coarse.mean.size() ||
         fine.standard_error.size() != fine.mean.size()) {
+
         throw std::invalid_argument("ProcessedData vectors have inconsistent sizes");
     }
-    if (!(relative_tolerance > 0.0)) {
-        throw std::invalid_argument("relative_tolerance must be positive");
-    }
-    if (!(absolute_floor > 0.0)) {
-        throw std::invalid_argument("absolute_floor must be positive");
+
+    if (!(relative_tolerance >= 0.0) || !(absolute_tolerance >= 0.0) || !(z_score > 0.0)) {
+
+        throw std::invalid_argument("Invalid time-discretization tolerances");
     }
 
     TimeDiscretizationReport report;
 
-    for (std::size_t i = 0; i < coarse.mean.size() /* [N] */; ++i) {
-        const double absolute_difference = std::abs(coarse.mean[i] - fine.mean[i]);
+    for (std::size_t i = 0; i < coarse.mean.size(); ++i) {
+        const double coarse_mean = coarse.mean[i];
+        const double fine_mean = fine.mean[i];
 
-        // Appropriate when the h and h/2 pilot runs are statistically
-        // independent, which they are.
-        const double difference_standard_error =
-            std::hypot(coarse.standard_error[i], fine.standard_error[i]); // sqrt(a^2 + b^2)
+        const double coarse_se = coarse.standard_error[i];
+        const double fine_se = fine.standard_error[i];
 
-        const double scale = std::max(absolute_floor, std::abs(fine.mean[i]));
-        // Conservative upper estimate of the plausible discrepancy.
-        const double relative_difference =
-            (absolute_difference + z_score * difference_standard_error) / scale;
+        if (!std::isfinite(coarse_mean) || !std::isfinite(fine_mean) || !std::isfinite(coarse_se) ||
+            !std::isfinite(fine_se) || coarse_se < 0.0 || fine_se < 0.0) {
 
-        if (relative_difference > report.worst_relative_difference) {
-            report.worst_relative_difference = relative_difference;
+            report.passed = false;
+            report.worst_error_ratio = std::numeric_limits<double>::infinity();
+            report.worst_index = i;
+            return report;
+        }
+
+        const double absolute_difference = std::abs(coarse_mean - fine_mean);
+        const double difference_standard_error = std::hypot(coarse_se, fine_se);
+
+        // Conservative upper bound on the plausible timestep discrepancy.
+        const double uncertainty_bound = absolute_difference + z_score * difference_standard_error;
+
+        // Symmetric scale: avoids treating either solution as exact.
+        const double solution_scale = std::max(std::abs(coarse_mean), std::abs(fine_mean));
+
+        const double allowed_difference = absolute_tolerance + relative_tolerance * solution_scale;
+
+        const double error_ratio = allowed_difference > 0.0
+                                       ? uncertainty_bound / allowed_difference
+                                       : std::numeric_limits<double>::infinity();
+
+        if (error_ratio > report.worst_error_ratio) {
+            report.worst_error_ratio = error_ratio;
             report.worst_absolute_difference = absolute_difference;
             report.worst_difference_standard_error = difference_standard_error;
+            report.worst_uncertainty_bound = uncertainty_bound;
+            report.worst_allowed_difference = allowed_difference;
+            report.worst_coarse_mean = coarse_mean;
+            report.worst_fine_mean = fine_mean;
             report.worst_index = i;
         }
-        if (relative_difference > relative_tolerance) {
+
+        if (uncertainty_bound > allowed_difference) {
             report.passed = false;
         }
     }
+
     return report;
 }
 
@@ -141,101 +171,114 @@ process_simulation_data(const std::vector<double> &batches /* [statistical_batch
 
 struct StochasticReport {
     bool passed = true;
-    double worst_relative_error = 0.0;
+
+    double worst_error_ratio = 0.0;
+    double worst_uncertainty = 0.0;
+    double worst_allowed_uncertainty = 0.0;
+
     std::size_t worst_index = 0;
 };
 
-inline StochasticReport estimate_stochastic_error(const ProcessedData &processed_data /* [N]*/,
+inline StochasticReport estimate_stochastic_error(const ProcessedData &data,
                                                   const double relative_tolerance,
-                                                  const double absolute_floor,
+                                                  const double absolute_tolerance,
                                                   const double z_score = 2.0) {
-    if (processed_data.mean.size() != processed_data.standard_error.size()) {
+    if (data.mean.size() != data.standard_error.size() ||
+        data.standard_deviation.size() != data.mean.size()) {
         throw std::invalid_argument("ProcessedData vectors have inconsistent sizes");
+    }
+
+    if (!(relative_tolerance >= 0.0) || !(absolute_tolerance >= 0.0) || !(z_score > 0.0)) {
+        throw std::invalid_argument("Invalid stochastic-error tolerances");
     }
 
     StochasticReport report;
 
-    for (std::size_t i = 0; i < processed_data.mean.size() /* [N] */; ++i) {
+    for (std::size_t i = 0; i < data.mean.size(); ++i) {
+        const double mean = data.mean[i];
+        const double se = data.standard_error[i];
 
-        const double scale = std::max(absolute_floor, std::abs(processed_data.mean[i]));
-        const double relative_error =
-            z_score * processed_data.standard_error[i] / scale; // small SE -> small relative_error
+        if (!std::isfinite(mean) || !std::isfinite(se) || se < 0.0) {
+            report.passed = false;
+            report.worst_error_ratio = std::numeric_limits<double>::infinity();
+            report.worst_index = i;
+            return report;
+        }
 
-        if (relative_error > report.worst_relative_error) {
-            report.worst_relative_error = relative_error;
+        const double uncertainty = z_score * se;
+
+        const double allowed_uncertainty = absolute_tolerance + relative_tolerance * std::abs(mean);
+
+        const double error_ratio = allowed_uncertainty > 0.0
+                                       ? uncertainty / allowed_uncertainty
+                                       : std::numeric_limits<double>::infinity();
+
+        if (error_ratio > report.worst_error_ratio) {
+            report.worst_error_ratio = error_ratio;
+            report.worst_uncertainty = uncertainty;
+            report.worst_allowed_uncertainty = allowed_uncertainty;
             report.worst_index = i;
         }
 
-        if (relative_error > relative_tolerance) {
+        if (uncertainty > allowed_uncertainty) {
             report.passed = false;
         }
     }
+
     return report;
 }
 
-inline void print_stochastic_report(
-    const char* name,
-    const ProcessedData& data,
-    const StochasticReport& report)
-{
+inline void print_stochastic_report(const char *name, const ProcessedData &data,
+                                    const StochasticReport &report) {
     constexpr int indent_width = 4;
     constexpr int label_width = 15;
 
     const std::string indent(indent_width, ' ');
     const std::size_t i = report.worst_index;
 
-    std::cout
-        << '\n'
-        << indent << "---------------\n"
-        << indent << name << '\n'
-        << indent << std::left
-        << std::setw(label_width) << "Passed:"
-        << std::boolalpha << report.passed << '\n'
-        << indent
-        << std::setw(label_width) << "Worst index:"
-        << i << '\n'
-        << indent
-        << std::setw(label_width) << "Mean:"
-        << data.mean[i] << '\n'
-        << indent
-        << std::setw(label_width) << "Sigma batch:"
-        << data.standard_deviation[i] << '\n'
-        << indent
-        << std::setw(label_width) << "SE:"
-        << data.standard_error[i] << '\n'
-        << indent
-        << std::setw(label_width) << "2SE/scale:"
-        << report.worst_relative_error << '\n';
+    std::cout << '\n'
+              << indent << "---------------\n"
+              << indent << name << '\n'
+              << indent << std::left << std::setw(label_width) << "Passed:" << std::boolalpha
+              << report.passed << '\n'
+              << indent << std::setw(label_width) << "Worst index:" << i << '\n'
+              << indent << std::setw(label_width) << "Mean:" << data.mean[i] << '\n'
+              << indent << std::setw(label_width) << "Sigma batch:" << data.standard_deviation[i]
+              << '\n'
+              << indent << std::setw(label_width) << "SE:" << data.standard_error[i] << '\n'
+              << indent << std::setw(label_width) << "Uncertainty:" << report.worst_uncertainty
+              << '\n'
+              << indent << std::setw(label_width)
+              << "Allowed uncertainty:" << report.worst_allowed_uncertainty << '\n'
+              << indent << std::setw(label_width) << "Error ratio:" << report.worst_error_ratio
+              << '\n';
 }
 
-inline void print_time_report(
-    const char* name,
-    const TimeDiscretizationReport& report)
-{
+inline void print_time_report(const char *name, const TimeDiscretizationReport &report) {
     constexpr int indent_width = 4;
-    constexpr int label_width = 24;
+    constexpr int label_width = 28;
 
     const std::string indent(indent_width, ' ');
 
-    std::cout
-        << '\n'
-        << indent << "----------------\n"
-        << indent << name << '\n'
-        << indent << std::left
-        << std::setw(label_width) << "Passed:"
-        << std::boolalpha << report.passed << '\n'
-        << indent
-        << std::setw(label_width) << "Worst index:"
-        << report.worst_index << '\n'
-        << indent
-        << std::setw(label_width) << "Relative discrepancy:"
-        << report.worst_relative_difference << '\n'
-        << indent
-        << std::setw(label_width) << "Absolute difference:"
-        << report.worst_absolute_difference << '\n'
-        << indent
-        << std::setw(label_width) << "Difference SE:"
-        << report.worst_difference_standard_error << '\n';
+    std::cout << '\n'
+              << indent << "----------------\n"
+              << indent << name << '\n'
+              << indent << std::left << std::setw(label_width) << "Passed:" << std::boolalpha
+              << report.passed << '\n'
+              << indent << std::setw(label_width) << "Worst index:" << report.worst_index << '\n'
+              << indent << std::setw(label_width) << "Coarse mean:" << report.worst_coarse_mean
+              << '\n'
+              << indent << std::setw(label_width) << "Fine mean:" << report.worst_fine_mean << '\n'
+              << indent << std::setw(label_width)
+              << "Absolute difference:" << report.worst_absolute_difference << '\n'
+              << indent << std::setw(label_width)
+              << "Difference SE:" << report.worst_difference_standard_error << '\n'
+              << indent << std::setw(label_width)
+              << "Uncertainty bound:" << report.worst_uncertainty_bound << '\n'
+              << indent << std::setw(label_width)
+              << "Allowed difference:" << report.worst_allowed_difference << '\n'
+              << indent << std::setw(label_width) << "Error ratio:" << report.worst_error_ratio
+              << '\n';
 }
 
 template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
@@ -366,6 +409,11 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         // estimate worst stochastic error
         constexpr double relative_error_threshold = 0.03;
         constexpr double absolute_floor = 1.0e-2; // guard for avoiding division by zero / near zero
+        constexpr double stochastic_relative_tolerance = 0.03;
+        constexpr double stochastic_absolute_tolerance = 1.0e-2;
+
+        constexpr double time_relative_tolerance = 0.05;
+        constexpr double time_absolute_tolerance = 1.0e-2;
 
         const StochasticReport total_stoachstic_report_h =
             estimate_stochastic_error(total_h, relative_error_threshold, absolute_floor);
@@ -415,7 +463,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
             spread_stochastic_report_h4.passed;
 
         // stochastic reports
-	std::cout << "\n\n=======Stochastic Report=======\n";
+        std::cout << "\n\n=======Stochastic Report=======\n";
         print_stochastic_report("total energy h", total_h, total_stoachstic_report_h);
         print_stochastic_report("mean energy h", mean_h, mean_stoachstic_report_h);
         print_stochastic_report("spread of energy h", spread_h, spread_stoachstic_report_h);
@@ -437,16 +485,16 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         std::cout << "\n\n\n3. Checking time error...";
         constexpr double time_tolerance = 0.05; // must be bigger then stoochastic rel_err threshold
 
-        const TimeDiscretizationReport total_time_h2_h4 =
-            estimate_time_error(total_h2, total_h4, time_tolerance, absolute_floor);
-        const TimeDiscretizationReport kinetic_time_h2_h4 =
-            estimate_time_error(kinetic_h2, kinetic_h4, time_tolerance, absolute_floor);
-        const TimeDiscretizationReport potential_time_h2_h4 =
-            estimate_time_error(potential_h2, potential_h4, time_tolerance, absolute_floor);
+        const TimeDiscretizationReport total_time_h2_h4 = estimate_time_error(
+            total_h2, total_h4, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport kinetic_time_h2_h4 = estimate_time_error(
+            kinetic_h2, kinetic_h4, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport potential_time_h2_h4 = estimate_time_error(
+            potential_h2, potential_h4, time_relative_tolerance, time_absolute_tolerance);
         const TimeDiscretizationReport mean_time_h2_h4 =
-            estimate_time_error(mean_h2, mean_h4, time_tolerance, absolute_floor);
-        const TimeDiscretizationReport spread_time_h2_h4 =
-            estimate_time_error(spread_h2, spread_h4, time_tolerance, absolute_floor);
+            estimate_time_error(mean_h2, mean_h4, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport spread_time_h2_h4 = estimate_time_error(
+            spread_h2, spread_h4, time_relative_tolerance, time_absolute_tolerance);
 
         // check whether h2 agrees with h4
         const bool h2_h4_agree = total_time_h2_h4.passed && kinetic_time_h2_h4.passed &&
@@ -454,11 +502,11 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
                                  spread_time_h2_h4.passed;
 
         // print h2_h4 report
-	std::cout << "\n\n========Time Report========\n";
+        std::cout << "\n\n========Time Report========\n";
         print_time_report("total energy h2_h4", total_time_h2_h4);
         print_time_report("kinetic energy h2_h4", kinetic_time_h2_h4);
-	print_time_report("potential energy h2_h4", potential_time_h2_h4);
-	print_time_report("mean energy h2_h4", mean_time_h2_h4);
+        print_time_report("potential energy h2_h4", potential_time_h2_h4);
+        print_time_report("mean energy h2_h4", mean_time_h2_h4);
         print_time_report("spread of energy h2_h4", spread_time_h2_h4);
 
         // if this already fails, then h2 does not resolve fine enough
@@ -469,24 +517,25 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         }
 
         // check if h agrees with h2
-        const TimeDiscretizationReport total_time_h_h2 =
-            estimate_time_error(total_h, total_h2, time_tolerance, absolute_floor);
-        const TimeDiscretizationReport kinetic_time_h_h2 =
-            estimate_time_error(kinetic_h, kinetic_h2, time_tolerance, absolute_floor);
-        const TimeDiscretizationReport potential_time_h_h2 =
-            estimate_time_error(potential_h, potential_h2, time_tolerance, absolute_floor);
+        const TimeDiscretizationReport total_time_h_h2 = estimate_time_error(
+            total_h, total_h2, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport kinetic_time_h_h2 = estimate_time_error(
+            kinetic_h, kinetic_h2, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport potential_time_h_h2 = estimate_time_error(
+            potential_h, potential_h2, time_relative_tolerance, time_absolute_tolerance);
         const TimeDiscretizationReport mean_time_h_h2 =
-            estimate_time_error(mean_h, mean_h2, time_tolerance, absolute_floor);
-        const TimeDiscretizationReport spread_time_h_h2 =
-            estimate_time_error(spread_h, spread_h2, time_tolerance, absolute_floor);
+            estimate_time_error(mean_h, mean_h2, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport spread_time_h_h2 = estimate_time_error(
+            spread_h, spread_h2, time_relative_tolerance, time_absolute_tolerance);
 
         const bool h_h2_agree = total_time_h_h2.passed && kinetic_time_h_h2.passed &&
                                 potential_time_h_h2.passed && mean_time_h_h2.passed &&
                                 spread_time_h_h2.passed;
         // if h does not agrees with h2
         if (!h_h2_agree) {
-            std::cout << "\n\nh doesn't resolve the simulation, but h2 agreed with h4. Calculating h8 "
-                         "to verify...\n";
+            std::cout
+                << "\n\nh doesn't resolve the simulation, but h2 agreed with h4. Calculating h8 "
+                   "to verify...\n";
             SimulationResults pilot_h8;
             std::cout << "Running the simulation with dt = " << dt / 8.0 << "\n";
             pilot_h8 =
