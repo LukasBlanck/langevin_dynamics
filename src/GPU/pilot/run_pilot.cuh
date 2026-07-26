@@ -407,46 +407,44 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         // --------------------------
         std::cout << "\n2. Checking stochastic error...";
         // estimate worst stochastic error
-        constexpr double relative_error_threshold = 0.03;
-        constexpr double absolute_floor = 1.0e-2; // guard for avoiding division by zero / near zero
         constexpr double stochastic_relative_tolerance = 0.03;
         constexpr double stochastic_absolute_tolerance = 1.0e-2;
 
         constexpr double time_relative_tolerance = 0.05;
         constexpr double time_absolute_tolerance = 1.0e-2;
 
-        const StochasticReport total_stoachstic_report_h =
-            estimate_stochastic_error(total_h, relative_error_threshold, absolute_floor);
-        const StochasticReport kinetic_stoachstic_report_h =
-            estimate_stochastic_error(kinetic_h, relative_error_threshold, absolute_floor);
-        const StochasticReport potential_stoachstic_report_h =
-            estimate_stochastic_error(potential_h, relative_error_threshold, absolute_floor);
-        const StochasticReport mean_stoachstic_report_h =
-            estimate_stochastic_error(mean_h, relative_error_threshold, absolute_floor);
-        const StochasticReport spread_stoachstic_report_h =
-            estimate_stochastic_error(spread_h, relative_error_threshold, absolute_floor);
+        const StochasticReport total_stoachstic_report_h = estimate_stochastic_error(
+            total_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport kinetic_stoachstic_report_h = estimate_stochastic_error(
+            kinetic_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport potential_stoachstic_report_h = estimate_stochastic_error(
+            potential_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport mean_stoachstic_report_h = estimate_stochastic_error(
+            mean_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport spread_stoachstic_report_h = estimate_stochastic_error(
+            spread_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
 
-        const StochasticReport total_stochastic_report_h2 =
-            estimate_stochastic_error(total_h2, relative_error_threshold, absolute_floor);
-        const StochasticReport kinetic_stochastic_report_h2 =
-            estimate_stochastic_error(kinetic_h2, relative_error_threshold, absolute_floor);
-        const StochasticReport potential_stochastic_report_h2 =
-            estimate_stochastic_error(potential_h2, relative_error_threshold, absolute_floor);
-        const StochasticReport mean_stochastic_report_h2 =
-            estimate_stochastic_error(mean_h2, relative_error_threshold, absolute_floor);
-        const StochasticReport spread_stochastic_report_h2 =
-            estimate_stochastic_error(spread_h2, relative_error_threshold, absolute_floor);
+        const StochasticReport total_stochastic_report_h2 = estimate_stochastic_error(
+            total_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport kinetic_stochastic_report_h2 = estimate_stochastic_error(
+            kinetic_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport potential_stochastic_report_h2 = estimate_stochastic_error(
+            potential_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport mean_stochastic_report_h2 = estimate_stochastic_error(
+            mean_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport spread_stochastic_report_h2 = estimate_stochastic_error(
+            spread_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
 
-        const StochasticReport total_stochastic_report_h4 =
-            estimate_stochastic_error(total_h4, relative_error_threshold, absolute_floor);
-        const StochasticReport kinetic_stochastic_report_h4 =
-            estimate_stochastic_error(kinetic_h4, relative_error_threshold, absolute_floor);
-        const StochasticReport potential_stochastic_report_h4 =
-            estimate_stochastic_error(potential_h4, relative_error_threshold, absolute_floor);
-        const StochasticReport mean_stochastic_report_h4 =
-            estimate_stochastic_error(mean_h4, relative_error_threshold, absolute_floor);
-        const StochasticReport spread_stochastic_report_h4 =
-            estimate_stochastic_error(spread_h4, relative_error_threshold, absolute_floor);
+        const StochasticReport total_stochastic_report_h4 = estimate_stochastic_error(
+            total_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport kinetic_stochastic_report_h4 = estimate_stochastic_error(
+            kinetic_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport potential_stochastic_report_h4 = estimate_stochastic_error(
+            potential_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport mean_stochastic_report_h4 = estimate_stochastic_error(
+            mean_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport spread_stochastic_report_h4 = estimate_stochastic_error(
+            spread_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
 
         // check reports
         const bool stochastic_error_small_enough_h =
@@ -483,7 +481,6 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         // |    TIME ERROR    |
         // --------------------
         std::cout << "\n\n\n3. Checking time error...";
-        constexpr double time_tolerance = 0.05; // must be bigger then stoochastic rel_err threshold
 
         const TimeDiscretizationReport total_time_h2_h4 = estimate_time_error(
             total_h2, total_h4, time_relative_tolerance, time_absolute_tolerance);
@@ -554,16 +551,16 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
             const ProcessedData spread_h8 =
                 process_simulation_data(pilot_h8.tot_energy_spread, statistical_batches, 1);
 
-            const TimeDiscretizationReport total_time_h4_h8 =
-                estimate_time_error(total_h4, total_h8, time_tolerance, absolute_floor);
-            const TimeDiscretizationReport kinetic_time_h4_h8 =
-                estimate_time_error(kinetic_h4, kinetic_h8, time_tolerance, absolute_floor);
-            const TimeDiscretizationReport potential_time_h4_h8 =
-                estimate_time_error(potential_h4, potential_h8, time_tolerance, absolute_floor);
-            const TimeDiscretizationReport mean_time_h4_h8 =
-                estimate_time_error(mean_h4, mean_h8, time_tolerance, absolute_floor);
-            const TimeDiscretizationReport spread_time_h4_h8 =
-                estimate_time_error(spread_h4, spread_h8, time_tolerance, absolute_floor);
+            const TimeDiscretizationReport total_time_h4_h8 = estimate_time_error(
+                total_h4, total_h8, time_relative_tolerance, time_absolute_tolerance);
+            const TimeDiscretizationReport kinetic_time_h4_h8 = estimate_time_error(
+                kinetic_h4, kinetic_h8, time_relative_tolerance, time_absolute_tolerance);
+            const TimeDiscretizationReport potential_time_h4_h8 = estimate_time_error(
+                potential_h4, potential_h8, time_relative_tolerance, time_absolute_tolerance);
+            const TimeDiscretizationReport mean_time_h4_h8 = estimate_time_error(
+                mean_h4, mean_h8, time_relative_tolerance, time_absolute_tolerance);
+            const TimeDiscretizationReport spread_time_h4_h8 = estimate_time_error(
+                spread_h4, spread_h8, time_relative_tolerance, time_absolute_tolerance);
 
             const bool h4_h8_agree = total_time_h4_h8.passed && kinetic_time_h4_h8.passed &&
                                      potential_time_h4_h8.passed && mean_time_h4_h8.passed &&
@@ -584,7 +581,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         }
 
         // h2 is right now valid
-	return {Flag::AcceptedRequestedConfig, dt, "Pilot validated your config!"};
+        return {Flag::AcceptedRequestedConfig, dt, "Pilot validated your config!"};
         // check if convergence of order two is visible (must be valid here!)
         // TODO: compare stochastic error to time error:
         // time error must be much bigger then stochastic error
