@@ -2,20 +2,13 @@
 
 #include "input/input.hpp"
 #include "potentials.hpp"
+#include "run_pilot_simulation.cuh"
 #include <cmath>
 #include <cstddef>
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
-
-struct SimulationResults {
-    std::vector<double> total_energy_batches;     // [batches * N]
-    std::vector<double> kinetic_energy_batches;   // [batches * N]
-    std::vector<double> potential_energy_batches; // [batches * N]
-    std::vector<double> energy_spread_batches;    // [batches]
-    std::vector<double> energy_mean_batches;      // [batches]
-};
 
 enum class Flag {
     FailedStabilityLimit,
@@ -218,11 +211,12 @@ inline PilotOutcome run_pilot(const Config &config, const Potential potential) {
         const double stability_limit = potential.stability_limit(r_max, m);
 
         // while
-        if (!(dt < stability_limit)) {
+        constexpr double security_factor = 0.1;
+        if (!(dt < security_factor * stability_limit)) {
             return {Flag::FailedStabilityLimit, 0.0,
                     "Chosen dt = end_time / N_time is too large. It failed the formal stability "
                     "limit (find it under docs/stability_analysis.md). Chose N_time > {end_time / "
-                    "stability_limit}"};
+                    "security_factor * stability_limit}"};
         }
         std::cout << "Success!\n";
         std::cout << "Selected dt = " << dt;
@@ -237,54 +231,59 @@ inline PilotOutcome run_pilot(const Config &config, const Potential potential) {
         // run dedicated GPU verison that returns observables * [statistic_batches * N]
         // all integrate to SAME end_time_pilot
         const int number_of_batches = 100;
+        const int trajectories_per_statistical_batch =
+            static_cast<int>(N_ensemble / number_of_batches);
         SimulationResults pilot_h; // contains observables * [number_of_batches * N] doubles
         SimulationResults pilot_h2;
         SimulationResults pilot_h4;
         std::cout << "Running the pilot simulations...\n\n";
         std::cout << "Running the firt simulation with dt = " << dt / 2.0 << "\n";
-        pilot_h = run_pilot_simulation(number_of_batches, dt, target_steps);
+        pilot_h = run_pilot_simulation<Potential>(number_of_batches, dt, target_steps, config,
+                                                  trajectories_per_statistical_batch);
         std::cout << "Finished the first simulation.\n\n";
         std::cout << "Running the simulation with dt = " << dt / 2.0 << "\n";
-        pilot_h2 = run_pilot_simulation(number_of_batches, dt / 2.0, target_steps * 2);
+        pilot_h2 = run_pilot_simulation<Potential>(number_of_batches, dt / 2.0, target_steps * 2,
+                                                   config, trajectories_per_statistical_batch);
         std::cout << "Finished the second simulation.\n\n";
         std::cout << "Running the simulation with dt = " << dt / 4.0 << "\n";
-        pilot_h4 = run_pilot_simulation(number_of_batches, dt / 4.0, target_steps * 4);
+        pilot_h4 = run_pilot_simulation<Potential>(number_of_batches, dt / 4.0, target_steps * 4,
+                                                   config, trajectories_per_statistical_batch);
         std::cout << "Finished the third simulation.\n\n";
         std::cout << "Pilot simulations finished.";
 
         // reduce data from [batches * N] to [N]
         const ProcessedData total_h =
-            process_simulation_data(pilot_h.total_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h.total_energy, number_of_batches, N);
         const ProcessedData kinetic_h =
-            process_simulation_data(pilot_h.kinetic_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h.kinetic_energy, number_of_batches, N);
         const ProcessedData potential_h =
-            process_simulation_data(pilot_h.potential_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h.potential_energy, number_of_batches, N);
         const ProcessedData mean_h =
-            process_simulation_data(pilot_h.energy_mean_batches, number_of_batches, 1);
+            process_simulation_data(pilot_h.tot_energy_mean, number_of_batches, 1);
         const ProcessedData spread_h =
-            process_simulation_data(pilot_h.energy_spread_batches, number_of_batches, 1);
+            process_simulation_data(pilot_h.tot_energy_spread, number_of_batches, 1);
 
         const ProcessedData total_h2 =
-            process_simulation_data(pilot_h2.total_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h2.total_energy, number_of_batches, N);
         const ProcessedData kinetic_h2 =
-            process_simulation_data(pilot_h2.kinetic_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h2.kinetic_energy, number_of_batches, N);
         const ProcessedData potential_h2 =
-            process_simulation_data(pilot_h2.potential_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h2.potential_energy, number_of_batches, N);
         const ProcessedData mean_h2 =
-            process_simulation_data(pilot_h2.energy_mean_batches, number_of_batches, 1);
+            process_simulation_data(pilot_h2.tot_energy_mean, number_of_batches, 1);
         const ProcessedData spread_h2 =
-            process_simulation_data(pilot_h2.energy_spread_batches, number_of_batches, 1);
+            process_simulation_data(pilot_h2.tot_energy_spread, number_of_batches, 1);
 
         const ProcessedData total_h4 =
-            process_simulation_data(pilot_h4.total_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h4.total_energy, number_of_batches, N);
         const ProcessedData kinetic_h4 =
-            process_simulation_data(pilot_h4.kinetic_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h4.kinetic_energy, number_of_batches, N);
         const ProcessedData potential_h4 =
-            process_simulation_data(pilot_h4.potential_energy_batches, number_of_batches, N);
+            process_simulation_data(pilot_h4.potential_energy, number_of_batches, N);
         const ProcessedData mean_h4 =
-            process_simulation_data(pilot_h4.energy_mean_batches, number_of_batches, 1);
+            process_simulation_data(pilot_h4.tot_energy_mean, number_of_batches, 1);
         const ProcessedData spread_h4 =
-            process_simulation_data(pilot_h4.energy_spread_batches, number_of_batches, 1);
+            process_simulation_data(pilot_h4.tot_energy_spread, number_of_batches, 1);
 
         // -----------------------------------------------------------------------
         // --------------------------
@@ -335,7 +334,7 @@ inline PilotOutcome run_pilot(const Config &config, const Potential potential) {
             spread_stoachstic_report_h.passed;
         const bool stochastic_error_small_enough_h2 =
             total_stochastic_report_h2.passed && kinetic_stochastic_report_h2.passed &&
-            kinetic_stochastic_report_h2.passed && mean_stochastic_report_h2.passed &&
+            potential_stochastic_report_h2.passed && mean_stochastic_report_h2.passed &&
             spread_stochastic_report_h2.passed;
         const bool stochastic_error_small_enough_h4 =
             total_stochastic_report_h4.passed && kinetic_stochastic_report_h4.passed &&
@@ -402,19 +401,21 @@ inline PilotOutcome run_pilot(const Config &config, const Potential potential) {
                          "to verify...";
             SimulationResults pilot_h8;
             std::cout << "Running the simulation with dt = " << dt / 8.0 << "\n";
-            pilot_h8 = run_pilot_simulation(number_of_batches, dt / 8.0, target_steps * 8);
+            pilot_h8 =
+                run_pilot_simulation<Potential>(number_of_batches, dt / 8.0, target_steps * 8,
+                                                config, trajectories_per_statistical_batch);
             std::cout << "Finished the pilot simulation.\n\n";
 
             const ProcessedData total_h8 =
-                process_simulation_data(pilot_h8.total_energy_batches, number_of_batches, N);
+                process_simulation_data(pilot_h8.total_energy, number_of_batches, N);
             const ProcessedData kinetic_h8 =
-                process_simulation_data(pilot_h8.kinetic_energy_batches, number_of_batches, N);
+                process_simulation_data(pilot_h8.kinetic_energy, number_of_batches, N);
             const ProcessedData potential_h8 =
-                process_simulation_data(pilot_h8.potential_energy_batches, number_of_batches, N);
+                process_simulation_data(pilot_h8.potential_energy, number_of_batches, N);
             const ProcessedData mean_h8 =
-                process_simulation_data(pilot_h8.energy_mean_batches, number_of_batches, 1);
+                process_simulation_data(pilot_h8.tot_energy_mean, number_of_batches, 1);
             const ProcessedData spread_h8 =
-                process_simulation_data(pilot_h8.energy_spread_batches, number_of_batches, 1);
+                process_simulation_data(pilot_h8.tot_energy_spread, number_of_batches, 1);
 
             const TimeDiscretizationReport total_time_h4_h8 =
                 estimate_time_error(total_h4, total_h8, time_tolerance, absolute_floor);
@@ -443,7 +444,7 @@ inline PilotOutcome run_pilot(const Config &config, const Potential potential) {
 
         // check if convergence of order two is visible (must be valid here!)
         // TODO: compare stochastic error to time error:
-        // time error must be much smaller then stochastic error
+        // time error must be much bigger then stochastic error
 
     } else if constexpr (std::is_same_v<std::remove_cvref_t<Potential>, JosephsonPotential>) {
         // Josephson
