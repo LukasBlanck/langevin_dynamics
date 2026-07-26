@@ -6,6 +6,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import xarray as xr
 import numpy as np
+from matplotlib.widgets import Slider
 
 
 def make_label(da, fallback):
@@ -122,7 +123,15 @@ def is_correlation_variable(da):
         or "pearson" in long_name
     )
 
-def plot_heatmap(ds, da, show_metadata=False, output=None, overlay_moments=False):
+def plot_heatmap(
+    ds,
+    da,
+    show_metadata=False,
+    output=None,
+    overlay_moments=False,
+    threshold_slider=False,
+    initial_threshold=None,
+):
     if "time" not in da.dims:
         raise ValueError(
             f"Variable '{da.name}' does not have a 'time' dimension. "
@@ -131,9 +140,43 @@ def plot_heatmap(ds, da, show_metadata=False, output=None, overlay_moments=False
 
     spatial_dim = get_spatial_dim(da)
 
+    # Shape after transpose:
+    # rows    -> spatial coordinate
+    # columns -> time
     heat = da.transpose(spatial_dim, "time")
 
-    fig, ax = plt.subplots(figsize=(9, 5))
+    time_values = np.asarray(ds["time"].values)
+    spatial_values = np.asarray(ds[spatial_dim].values)
+    heat_values = np.asarray(heat.values)
+
+    finite_values = heat_values[np.isfinite(heat_values)]
+
+    if finite_values.size == 0:
+        raise ValueError(
+            f"Variable '{da.name}' does not contain finite values."
+        )
+
+    value_min = float(np.min(finite_values))
+    value_max = float(np.max(finite_values))
+
+    if initial_threshold is None:
+        initial_threshold = 0.5 * (value_min + value_max)
+
+    initial_threshold = float(
+        np.clip(initial_threshold, value_min, value_max)
+    )
+
+    if threshold_slider and output:
+        raise ValueError(
+            "An interactive threshold slider cannot be used together with --output."
+        )
+
+    if threshold_slider:
+        # Reserve space beneath the plot for the slider.
+        fig, ax = plt.subplots(figsize=(9, 6))
+        fig.subplots_adjust(bottom=0.18)
+    else:
+        fig, ax = plt.subplots(figsize=(9, 5))
 
     plot_kwargs = {
         "ax": ax,
@@ -152,9 +195,67 @@ def plot_heatmap(ds, da, show_metadata=False, output=None, overlay_moments=False
 
     heat.plot.imshow(**plot_kwargs)
 
+    threshold_contour = None
+
+    def draw_threshold(threshold):
+        nonlocal threshold_contour
+
+        # Remove the previous contour.
+        if threshold_contour is not None:
+            threshold_contour.remove()
+            threshold_contour = None
+
+        # True where the selected threshold is reached or exceeded.
+        threshold_mask = (
+            np.isfinite(heat_values)
+            & (heat_values >= threshold)
+        )
+
+        if np.any(threshold_mask) and not np.all(threshold_mask):
+            threshold_contour = ax.contour(
+                time_values,
+                spatial_values,
+                threshold_mask.astype(float),
+                levels=[0.5],
+                linewidths=1.5,
+            )
+        else:
+            threshold_contour = None
+
+        ax.set_title(
+            f"{da.attrs.get('long_name', da.name)} "
+            f"— threshold ≥ {threshold:.6g}"
+        )
+
+        fig.canvas.draw_idle()
+
+    if threshold_slider:
+        slider_ax = fig.add_axes([0.18, 0.06, 0.64, 0.035])
+
+        threshold_control = Slider(
+            ax=slider_ax,
+            label="Energy threshold",
+            valmin=value_min,
+            valmax=value_max,
+            valinit=initial_threshold,
+        )
+
+        draw_threshold(initial_threshold)
+
+        threshold_control.on_changed(draw_threshold)
+
+        # Keep a reference alive for the lifetime of the figure.
+        fig._threshold_slider = threshold_control
+
+    elif initial_threshold is not None:
+        draw_threshold(initial_threshold)
+
     if overlay_moments:
         if "first_moment_total_energy" not in ds:
-            raise KeyError("Overlay requires variable 'first_moment_total_energy' in the dataset.")
+            raise KeyError(
+                "Overlay requires variable "
+                "'first_moment_total_energy' in the dataset."
+            )
 
         centroid = ds["first_moment_total_energy"]
 
@@ -183,12 +284,15 @@ def plot_heatmap(ds, da, show_metadata=False, output=None, overlay_moments=False
 
     ax.set_xlabel(make_label(ds["time"], "time"))
     ax.set_ylabel(spatial_dim)
-    ax.set_title(str(da.attrs.get("long_name", da.name)))
+
+    if not threshold_slider:
+        ax.set_title(str(da.attrs.get("long_name", da.name)))
 
     if show_metadata:
         add_metadata_box(ax, ds)
 
-    fig.tight_layout()
+    if not threshold_slider:
+        fig.tight_layout()
 
     if output:
         fig.savefig(output, dpi=300)
@@ -227,6 +331,8 @@ def plot_netcdf(
     reduce_mode="mean",
     output=None,
     overlay_moments=False,
+    threshold_slider=False,
+    initial_threshold=None,
 ):
     path = Path(path)
 
@@ -268,6 +374,8 @@ def plot_netcdf(
                 show_metadata=show_metadata,
                 output=output,
                 overlay_moments=overlay_moments,
+                threshold_slider=threshold_slider,
+                initial_threshold=initial_threshold,
             )
         else:
             raise ValueError(f"Unknown plot kind: {kind}")
@@ -329,6 +437,25 @@ def main():
         help="For heat plots, overlay centroid ± spread if available.",
     )
 
+    parser.add_argument(
+        "--threshold-slider",
+        action="store_true",
+        help=(
+            "For interactive heat plots, show a slider and outline all "
+            "values greater than or equal to the selected threshold."
+        ),
+    )
+
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=None,
+        help=(
+            "Initial energy threshold. With --threshold-slider this sets "
+            "the slider's initial value."
+        ),
+    )
+
     args = parser.parse_args()
 
     plot_netcdf(
@@ -339,6 +466,8 @@ def main():
         reduce_mode=args.reduce,
         output=args.output,
         overlay_moments=args.overlay_moments,
+        threshold_slider=args.threshold_slider,
+        initial_threshold=args.threshold,
     )
 
 
