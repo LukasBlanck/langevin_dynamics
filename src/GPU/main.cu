@@ -16,10 +16,8 @@ int main() {
 
         // choose potential and run simulation
         if (config.model.potential == "FPU") {
-            const FPUPotential potential(config);
-
             // run pilot
-            const PilotOutcome pilot_outcome = run_pilot<FPUPotential>(config, potential);
+            const PilotOutcome pilot_outcome = run_pilot<FPUPotential>(config);
             std::cout << pilot_outcome.message << "\n" << std::flush;
 
             // depending on pilot outcome:
@@ -40,13 +38,32 @@ int main() {
 
             // Josephson
         } else if (config.model.potential == "Josephson") {
-            run_simulation<JosephsonPotential>(config, output_path);
+            // run pilot
+            const PilotOutcome pilot_outcome = run_pilot<JosephsonPotential>(config);
+            std::cout << pilot_outcome.message << "\n" << std::flush;
+
+            // depending on pilot outcome:
+            switch (pilot_outcome.decision) {
+            case Flag::AcceptedRequestedConfig:
+                run_simulation<JosephsonPotential>(config, output_path);
+                break;
+
+            case Flag::FailedStabilityLimit:
+                return 1;
+            case Flag::IncreaseN_ensemble:
+                return 1;
+            case Flag::IncreaseN_time:
+                return 1;
+            case Flag::SomethingWentWrong:
+                throw std::runtime_error("Pilot simulation failed unexpectedly.");
+            }
         } else {
             throw std::runtime_error(
                 "No valid potential chosen. Valid potentials are: FPU, Josephson");
         }
 
         return 0;
+
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << "\n";
         return 1;
