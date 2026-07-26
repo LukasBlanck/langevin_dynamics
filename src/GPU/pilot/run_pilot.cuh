@@ -588,7 +588,289 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
 
     } else if constexpr (std::is_same_v<std::remove_cvref_t<Potential>, JosephsonPotential>) {
         // Josephson
-        // repeat same logic
+        // FPU
+        // check stability bond
+        std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%";
+        std::cout << "\n";
+        std::cout << "╔════════════════════════════════════════════╗\n";
+        std::cout << "║                  Pilot Run                 ║\n";
+        std::cout << "╚════════════════════════════════════════════╝\n";
+        std::cout << "\n";
+        std::cout << "1. Checking global Josephson stability limit...\n";
+
+        const double stability_limit = potential.stability_limit(m);
+
+        // while
+        constexpr double security_factor = 0.1;
+        if (!(dt < security_factor * stability_limit)) {
+            const int N_time_min = end_time / (security_factor * stability_limit) + 1;
+            const double max_dt_stable = stability_limit * security_factor;
+            std::ostringstream message;
+            message << "Failed !\nChosen dt = " << dt
+                    << " is too large. The maximum allowed timestep "
+                    << "with safety factor of " << security_factor << " is " << max_dt_stable
+                    << ". "
+                    << "The formal stability limit is " << stability_limit << ". "
+                    << "Choose N_time >= " << N_time_min << ".\n"
+                    << "See docs/stability_analysis.md for more info.\n";
+            return {Flag::FailedStabilityLimit, 0.0, message.str()};
+        }
+        std::cout << "Success!\n";
+        std::cout << "Selected dt = " << dt << "\n";
+
+        // configure reasonable duration (change N_time and end_time)
+        const int target_steps = 10'000; // N_time of pilot run
+        const double end_time_pilot = static_cast<double>(target_steps) * dt;
+        std::cout << "\n\nTo ensure a limited running time for the pilot analysis, the end_time "
+                     "for the pilot run is manually set to "
+                  << end_time_pilot << "\n";
+
+        // run dedicated GPU verison that returns observables * [statistic_batches * N]
+        // all integrate to SAME end_time_pilot
+        const int statistical_batches = 100;
+        if ((N_ensemble % statistical_batches) != 0) {
+            std::ostringstream message;
+            message << "N_ensemble must be divisible by " << statistical_batches << "!\n";
+            throw std::logic_error(message.str());
+        }
+        const int trajectories_per_statistical_batch =
+            static_cast<int>(N_ensemble / statistical_batches);
+        SimulationResults pilot_h; // contains observables * [statistical_batches * N] doubles
+        SimulationResults pilot_h2;
+        SimulationResults pilot_h4;
+        std::cout << "Running the pilot simulations...\n\n";
+        std::cout << "Running the first simulation with dt = " << dt << "\n";
+        pilot_h = run_pilot_simulation<Potential>(statistical_batches, dt, target_steps, config,
+                                                  trajectories_per_statistical_batch);
+        std::cout << "Finished the first simulation.\n\n";
+        std::cout << "Running the simulation with dt = " << dt / 2.0 << "\n";
+        pilot_h2 = run_pilot_simulation<Potential>(statistical_batches, dt / 2.0, target_steps * 2,
+                                                   config, trajectories_per_statistical_batch);
+        std::cout << "Finished the second simulation.\n\n";
+        std::cout << "Running the simulation with dt = " << dt / 4.0 << "\n";
+        pilot_h4 = run_pilot_simulation<Potential>(statistical_batches, dt / 4.0, target_steps * 4,
+                                                   config, trajectories_per_statistical_batch);
+        std::cout << "Finished the third simulation.\n\n";
+        std::cout << "Pilot simulations finished.\n\n";
+
+        // reduce data from [batches * N] to [N]
+        const ProcessedData total_h =
+            process_simulation_data(pilot_h.total_energy, statistical_batches, N);
+        const ProcessedData kinetic_h =
+            process_simulation_data(pilot_h.kinetic_energy, statistical_batches, N);
+        const ProcessedData potential_h =
+            process_simulation_data(pilot_h.potential_energy, statistical_batches, N);
+        const ProcessedData mean_h =
+            process_simulation_data(pilot_h.tot_energy_mean, statistical_batches, 1);
+        const ProcessedData spread_h =
+            process_simulation_data(pilot_h.tot_energy_spread, statistical_batches, 1);
+
+        const ProcessedData total_h2 =
+            process_simulation_data(pilot_h2.total_energy, statistical_batches, N);
+        const ProcessedData kinetic_h2 =
+            process_simulation_data(pilot_h2.kinetic_energy, statistical_batches, N);
+        const ProcessedData potential_h2 =
+            process_simulation_data(pilot_h2.potential_energy, statistical_batches, N);
+        const ProcessedData mean_h2 =
+            process_simulation_data(pilot_h2.tot_energy_mean, statistical_batches, 1);
+        const ProcessedData spread_h2 =
+            process_simulation_data(pilot_h2.tot_energy_spread, statistical_batches, 1);
+
+        const ProcessedData total_h4 =
+            process_simulation_data(pilot_h4.total_energy, statistical_batches, N);
+        const ProcessedData kinetic_h4 =
+            process_simulation_data(pilot_h4.kinetic_energy, statistical_batches, N);
+        const ProcessedData potential_h4 =
+            process_simulation_data(pilot_h4.potential_energy, statistical_batches, N);
+        const ProcessedData mean_h4 =
+            process_simulation_data(pilot_h4.tot_energy_mean, statistical_batches, 1);
+        const ProcessedData spread_h4 =
+            process_simulation_data(pilot_h4.tot_energy_spread, statistical_batches, 1);
+
+        // -----------------------------------------------------------------------
+        // --------------------------
+        // |    STOCHASTIC ERROR    |
+        // --------------------------
+        std::cout << "\n2. Checking stochastic error...";
+        // estimate worst stochastic error
+        constexpr double stochastic_relative_tolerance = 0.03;
+        constexpr double stochastic_absolute_tolerance = 1.0e-2;
+
+        constexpr double time_relative_tolerance = 0.05;
+        constexpr double time_absolute_tolerance = 1.0e-2;
+
+        const StochasticReport total_stoachstic_report_h = estimate_stochastic_error(
+            total_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport kinetic_stoachstic_report_h = estimate_stochastic_error(
+            kinetic_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport potential_stoachstic_report_h = estimate_stochastic_error(
+            potential_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport mean_stoachstic_report_h = estimate_stochastic_error(
+            mean_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport spread_stoachstic_report_h = estimate_stochastic_error(
+            spread_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+
+        const StochasticReport total_stochastic_report_h2 = estimate_stochastic_error(
+            total_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport kinetic_stochastic_report_h2 = estimate_stochastic_error(
+            kinetic_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport potential_stochastic_report_h2 = estimate_stochastic_error(
+            potential_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport mean_stochastic_report_h2 = estimate_stochastic_error(
+            mean_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport spread_stochastic_report_h2 = estimate_stochastic_error(
+            spread_h2, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+
+        const StochasticReport total_stochastic_report_h4 = estimate_stochastic_error(
+            total_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport kinetic_stochastic_report_h4 = estimate_stochastic_error(
+            kinetic_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport potential_stochastic_report_h4 = estimate_stochastic_error(
+            potential_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport mean_stochastic_report_h4 = estimate_stochastic_error(
+            mean_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+        const StochasticReport spread_stochastic_report_h4 = estimate_stochastic_error(
+            spread_h4, stochastic_relative_tolerance, stochastic_absolute_tolerance);
+
+        // check reports
+        const bool stochastic_error_small_enough_h =
+            total_stoachstic_report_h.passed && kinetic_stoachstic_report_h.passed &&
+            potential_stoachstic_report_h.passed && mean_stoachstic_report_h.passed &&
+            spread_stoachstic_report_h.passed;
+        const bool stochastic_error_small_enough_h2 =
+            total_stochastic_report_h2.passed && kinetic_stochastic_report_h2.passed &&
+            potential_stochastic_report_h2.passed && mean_stochastic_report_h2.passed &&
+            spread_stochastic_report_h2.passed;
+        const bool stochastic_error_small_enough_h4 =
+            total_stochastic_report_h4.passed && kinetic_stochastic_report_h4.passed &&
+            potential_stochastic_report_h4.passed && mean_stochastic_report_h4.passed &&
+            spread_stochastic_report_h4.passed;
+
+        // stochastic reports
+        std::cout << "\n\n=======Stochastic Report=======\n";
+        print_stochastic_report("total energy h", total_h, total_stoachstic_report_h);
+        print_stochastic_report("mean energy h", mean_h, mean_stoachstic_report_h);
+        print_stochastic_report("spread of energy h", spread_h, spread_stoachstic_report_h);
+
+        if ((stochastic_error_small_enough_h && !stochastic_error_small_enough_h2) |
+            (stochastic_error_small_enough_h && !stochastic_error_small_enough_h4)) {
+            throw std::runtime_error("h has small enough stoachstic error. but h2 or h4 has bigger "
+                                     "stochastic error -> inspect manually!");
+        }
+        if (!stochastic_error_small_enough_h) {
+            return {Flag::IncreaseN_ensemble, 0.0,
+                    "Stochastic error is too big! Increase N_ensemble and try again."};
+        }
+
+        // -----------------------------------------------------------------------
+        // --------------------
+        // |    TIME ERROR    |
+        // --------------------
+        std::cout << "\n\n\n3. Checking time error...";
+
+        const TimeDiscretizationReport total_time_h2_h4 = estimate_time_error(
+            total_h2, total_h4, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport kinetic_time_h2_h4 = estimate_time_error(
+            kinetic_h2, kinetic_h4, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport potential_time_h2_h4 = estimate_time_error(
+            potential_h2, potential_h4, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport mean_time_h2_h4 =
+            estimate_time_error(mean_h2, mean_h4, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport spread_time_h2_h4 = estimate_time_error(
+            spread_h2, spread_h4, time_relative_tolerance, time_absolute_tolerance);
+
+        // check whether h2 agrees with h4
+        const bool h2_h4_agree = total_time_h2_h4.passed && kinetic_time_h2_h4.passed &&
+                                 potential_time_h2_h4.passed && mean_time_h2_h4.passed &&
+                                 spread_time_h2_h4.passed;
+
+        // print h2_h4 report
+        std::cout << "\n\n========Time Report========\n";
+        print_time_report("total energy h2_h4", total_time_h2_h4);
+        print_time_report("kinetic energy h2_h4", kinetic_time_h2_h4);
+        print_time_report("potential energy h2_h4", potential_time_h2_h4);
+        print_time_report("mean energy h2_h4", mean_time_h2_h4);
+        print_time_report("spread of energy h2_h4", spread_time_h2_h4);
+
+        // if this already fails, then h2 does not resolve fine enough
+        if (!h2_h4_agree) {
+            return {Flag::IncreaseN_time, dt / 2.0,
+                    "Time error too big! Already h2 doesn't resolve the system enough. Try N_time "
+                    "= {end_time / dt / 4.0 }"};
+        }
+
+        // check if h agrees with h2
+        const TimeDiscretizationReport total_time_h_h2 = estimate_time_error(
+            total_h, total_h2, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport kinetic_time_h_h2 = estimate_time_error(
+            kinetic_h, kinetic_h2, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport potential_time_h_h2 = estimate_time_error(
+            potential_h, potential_h2, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport mean_time_h_h2 =
+            estimate_time_error(mean_h, mean_h2, time_relative_tolerance, time_absolute_tolerance);
+        const TimeDiscretizationReport spread_time_h_h2 = estimate_time_error(
+            spread_h, spread_h2, time_relative_tolerance, time_absolute_tolerance);
+
+        const bool h_h2_agree = total_time_h_h2.passed && kinetic_time_h_h2.passed &&
+                                potential_time_h_h2.passed && mean_time_h_h2.passed &&
+                                spread_time_h_h2.passed;
+        // if h does not agrees with h2
+        if (!h_h2_agree) {
+            std::cout
+                << "\n\nh doesn't resolve the simulation, but h2 agreed with h4. Calculating h8 "
+                   "to verify...\n";
+            SimulationResults pilot_h8;
+            std::cout << "Running the simulation with dt = " << dt / 8.0 << "\n";
+            pilot_h8 =
+                run_pilot_simulation<Potential>(statistical_batches, dt / 8.0, target_steps * 8,
+                                                config, trajectories_per_statistical_batch);
+            std::cout << "Finished the pilot h8 simulation.\n\n";
+
+            const ProcessedData total_h8 =
+                process_simulation_data(pilot_h8.total_energy, statistical_batches, N);
+            const ProcessedData kinetic_h8 =
+                process_simulation_data(pilot_h8.kinetic_energy, statistical_batches, N);
+            const ProcessedData potential_h8 =
+                process_simulation_data(pilot_h8.potential_energy, statistical_batches, N);
+            const ProcessedData mean_h8 =
+                process_simulation_data(pilot_h8.tot_energy_mean, statistical_batches, 1);
+            const ProcessedData spread_h8 =
+                process_simulation_data(pilot_h8.tot_energy_spread, statistical_batches, 1);
+
+            const TimeDiscretizationReport total_time_h4_h8 = estimate_time_error(
+                total_h4, total_h8, time_relative_tolerance, time_absolute_tolerance);
+            const TimeDiscretizationReport kinetic_time_h4_h8 = estimate_time_error(
+                kinetic_h4, kinetic_h8, time_relative_tolerance, time_absolute_tolerance);
+            const TimeDiscretizationReport potential_time_h4_h8 = estimate_time_error(
+                potential_h4, potential_h8, time_relative_tolerance, time_absolute_tolerance);
+            const TimeDiscretizationReport mean_time_h4_h8 = estimate_time_error(
+                mean_h4, mean_h8, time_relative_tolerance, time_absolute_tolerance);
+            const TimeDiscretizationReport spread_time_h4_h8 = estimate_time_error(
+                spread_h4, spread_h8, time_relative_tolerance, time_absolute_tolerance);
+
+            const bool h4_h8_agree = total_time_h4_h8.passed && kinetic_time_h4_h8.passed &&
+                                     potential_time_h4_h8.passed && mean_time_h4_h8.passed &&
+                                     spread_time_h4_h8.passed;
+            if (h4_h8_agree) {
+                std::cout << "h4 and h8 agree. Therefore h2 should already be sufficient to "
+                             "resolve the simulation.";
+                if (h4_h8_agree) {
+                    return {Flag::IncreaseN_time, dt / 2.0,
+                            "h4 and h8 agree. Therefore h2 should already be sufficient to "
+                            "resolve the simulation. Use N_time >= " +
+                                std::to_string(2 * N_time) + "."};
+                }
+            } else {
+                return {Flag::IncreaseN_time, 0.0,
+                        "Increse N_time to at least N_time = {end_time / (dt / 8.0)}"};
+            }
+        }
+
+        // h2 is right now valid
+        return {Flag::AcceptedRequestedConfig, dt, "Pilot validated your config!"};
+        // check if convergence of order two is visible (must be valid here!)
+        // TODO: compare stochastic error to time error:
+        // time error must be much bigger then stochastic error
 
     } else {
         static_assert(std::is_same_v<Potential, void>, "Unsupported potential type");
