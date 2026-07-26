@@ -4,6 +4,7 @@
 #include "input/input.hpp"
 #include <cmath>
 #include <string>
+#include <stdexcept>
 
 #if defined(LANGEVIN_COMPILE_FOR_GPU)
 #define LANGEVIN_HD __host__ __device__
