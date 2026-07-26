@@ -1,4 +1,5 @@
 #include "../potentials.hpp"
+#include "GPU/pilot/run_pilot.cuh"
 #include "run_simulation.cuh"
 #include <iostream>
 #include <stdexcept>
@@ -15,7 +16,29 @@ int main() {
 
         // choose potential and run simulation
         if (config.model.potential == "FPU") {
-            run_simulation<FPUPotential>(config, output_path);
+            const FPUPotential potential(config);
+
+            // run pilot
+            const PilotOutcome pilot_outcome = run_pilot<FPUPotential>(config, potential);
+            std::cout << pilot_outcome.message << "\n";
+
+            // depending on pilot outcome:
+            switch (pilot_outcome.decision) {
+            case Flag::AcceptedRequestedConfig:
+                run_simulation<FPUPotential>(config, output_path);
+                break;
+
+            case Flag::FailedStabilityLimit:
+                return 1;
+            case Flag::IncreaseN_ensemble:
+                return 1;
+            case Flag::IncreaseN_time:
+                return 1;
+            case Flag::SomethingWentWrong:
+                throw std::runtime_error("Pilot simulation failed unexpectedly.");
+            }
+
+            // Josephson
         } else if (config.model.potential == "Josephson") {
             run_simulation<JosephsonPotential>(config, output_path);
         } else {
