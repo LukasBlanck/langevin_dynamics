@@ -182,6 +182,14 @@ inline void print_stochastic_report(const char *name, const ProcessedData &data,
               << ", 2SE/scale = " << report.worst_relative_error << '\n';
 }
 
+inline void print_time_report(const char *name, const TimeDiscretizationReport &report) {
+    std::cout << name << ": passed = " << std::boolalpha << report.passed
+              << ", worst index = " << report.worst_index
+              << ", relative discrepancy = " << report.worst_relative_difference
+              << ", absolute difference = " << report.worst_absolute_difference
+              << ", difference SE = " << report.worst_difference_standard_error << '\n';
+}
+
 template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
 
     const Potential potential(config);
@@ -309,7 +317,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         // --------------------------
         std::cout << "2. Checking stochastic error...";
         // estimate worst stochastic error
-        constexpr double relative_error_threshold = 0.05;
+        constexpr double relative_error_threshold = 0.03;
         constexpr double absolute_floor = 1.0e-2; // guard for avoiding division by zero / near zero
 
         const StochasticReport total_stoachstic_report_h =
@@ -379,7 +387,7 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         // |    TIME ERROR    |
         // --------------------
         std::cout << "3. Checking time error...";
-        constexpr double time_tolerance = 0.005; // 0.5% = 0.1 * stochastic threshold
+        constexpr double time_tolerance = 0.05; // must be bigger then stoochastic rel_err threshold
 
         const TimeDiscretizationReport total_time_h2_h4 =
             estimate_time_error(total_h2, total_h4, time_tolerance, absolute_floor);
@@ -396,6 +404,14 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         const bool h2_h4_agree = total_time_h2_h4.passed && kinetic_time_h2_h4.passed &&
                                  potential_time_h2_h4.passed && mean_time_h2_h4.passed &&
                                  spread_time_h2_h4.passed;
+
+        // print h2_h4 report
+        print_time_report("total h2-h4", total_time_h2_h4);
+        print_time_report("kinetic h2-h4", kinetic_time_h2_h4);
+        print_time_report("potential h2-h4", potential_time_h2_h4);
+        print_time_report("mean h2-h4", mean_time_h2_h4);
+        print_time_report("spread h2-h4", spread_time_h2_h4);
+
         // if this already fails, then h2 does not resolve fine enough
         if (!h2_h4_agree) {
             return {Flag::IncreaseN_time, dt / 2.0,
