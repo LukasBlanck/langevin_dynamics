@@ -20,9 +20,8 @@
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
-#include <vector>
 #include <limits>
-
+#include <vector>
 
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -253,8 +252,8 @@ inline SimulationResults run_pilot_simulation(const int statistical_batches, con
         value *= inv_statistical_batch;
     }
 
-
-    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%" << "\n verify manually the pilot GPU results:\n"
+    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%"
+              << "\n verify manually the pilot GPU results:\n";
     for (int batch = 0; batch < statistical_batches; ++batch) {
         const std::size_t offset = static_cast<std::size_t>(batch) * static_cast<std::size_t>(N);
 
@@ -289,7 +288,8 @@ inline SimulationResults run_pilot_simulation(const int statistical_batches, con
     // Compute derived observables.
 
     // process weighted energies
-    normalized_energy(host_energy.total, host_energy.normalized_total, statistical_batches, N);
+    normalized_energy_per_batch(host_energy.total, host_energy.normalized_total,
+                                statistical_batches, N);
 
     first_moment(host_energy.normalized_total, host_energy.first_moment_total, statistical_batches,
                  N);

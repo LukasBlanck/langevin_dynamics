@@ -88,3 +88,30 @@ process_pearson_correlators(std::vector<double> &corr_p0, const std::vector<doub
         }
     }
 }
+
+// pilot helpers
+inline void normalized_energy_per_batch(const std::vector<double> &energy,
+                                        std::vector<double> &normalized_energy,
+                                        const int statistical_batches, const int N) {
+
+    for (int batch = 0; batch < statistical_batches; ++batch) {
+        const std::size_t stride = static_cast<std::size_t>(batch) * static_cast<std::size_t>(N);
+
+        double total_energy_per_batch = 0.0;
+
+        for (int site = 0; site < N; ++site) {
+            const double value = energy[stride + static_cast<std::size_t>(site)];
+            total_energy_per_batch += value;
+        }
+
+        if (!(total_energy_per_batch > 0.0) || !std::isfinite(total_energy_per_batch)) {
+            throw std::runtime_error("Cannot normalize a non-positive or "
+                                     "non-finite energy profile");
+        }
+
+        for (int site = 0; site < N; ++site) {
+            const std::size_t index = stride + static_cast<std::size_t>(site);
+            normalized_energy[index] = energy[index] / total_energy_per_batch;
+        }
+    }
+}
