@@ -98,6 +98,7 @@ def plot_line(ds, da, show_metadata=False, reduce_mode="mean", output=None):
 
     ax.set_xlabel(make_label(ds["time"], "time"))
     ax.set_ylabel(make_label(da, da.name))
+    # ax.hlines(31.5, 0.0, 50_000, linestyles="dotted", colors='green')
     ax.set_title(str(da.attrs.get("long_name", da.name)))
     ax.grid(True)
 
@@ -159,12 +160,13 @@ def plot_heatmap(
     value_min = float(np.min(finite_values))
     value_max = float(np.max(finite_values))
 
-    if initial_threshold is None:
+    if threshold_slider and initial_threshold is None:
         initial_threshold = 0.5 * (value_min + value_max)
 
-    initial_threshold = float(
-        np.clip(initial_threshold, value_min, value_max)
-    )
+    if initial_threshold is not None:
+        initial_threshold = float(
+            np.clip(initial_threshold, value_min, value_max)
+        )
 
     if threshold_slider and output:
         raise ValueError(
@@ -283,6 +285,8 @@ def plot_heatmap(
         ax.legend(loc="upper right")
 
     ax.set_xlabel(make_label(ds["time"], "time"))
+    # ax.set_xscale('log') - why not working? -- need a .pcolormesh instead of imshow
+    # ax.set_yscale('log') - why not working? -- furthermore: energy also is negative!
     ax.set_ylabel(spatial_dim)
 
     if not threshold_slider:
@@ -333,6 +337,7 @@ def plot_netcdf(
     overlay_moments=False,
     threshold_slider=False,
     initial_threshold=None,
+    time_threshold=None,
 ):
     path = Path(path)
 
@@ -343,6 +348,13 @@ def plot_netcdf(
         if "time" not in ds:
             raise KeyError("NetCDF file does not contain a variable or coordinate named 'time'.")
 
+        if time_threshold is not None:
+            ds = ds.where(ds["time"] < time_threshold, drop=True)
+            if ds.sizes.get("time", 0) == 0:
+                raise ValueError(
+                    f"No time values are smaller than {time_threshold}."
+                )
+        
         if variable is None:
             variable = choose_variable(ds)
 
@@ -456,6 +468,13 @@ def main():
         ),
     )
 
+    parser.add_argument(
+        "--time-threshold",
+        type=float,
+        default=None,
+        help="Only plot simulation times smaller than this value.",
+    )
+
     args = parser.parse_args()
 
     plot_netcdf(
@@ -468,6 +487,7 @@ def main():
         overlay_moments=args.overlay_moments,
         threshold_slider=args.threshold_slider,
         initial_threshold=args.threshold,
+        time_threshold=args.time_threshold,
     )
 
 
