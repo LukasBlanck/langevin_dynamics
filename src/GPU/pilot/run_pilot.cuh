@@ -206,7 +206,6 @@ inline StochasticReport estimate_stochastic_error(const ProcessedData &data,
         }
 
         const double uncertainty = z_score * se;
-
         const double allowed_uncertainty = absolute_tolerance + relative_tolerance * std::abs(mean);
 
         const double error_ratio = allowed_uncertainty > 0.0
@@ -286,6 +285,15 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
     const Potential potential(config);
 
     PilotOutcome pilot_outcome;
+
+    // manually set "accuracy" settings
+    constexpr double stochastic_relative_tolerance = 0.03; // 3% inaccuracy
+    constexpr double stochastic_absolute_tolerance =
+        1.0e-2; //  0.01 absolute difference tolerance at near zero
+
+    constexpr double time_relative_tolerance = 0.05; // 5% inaccuracy
+    constexpr double time_absolute_tolerance =
+        1.0e-2; // 0.01 absolute difference tolerance at near zero
 
     // extract input params
     const int N = config.grid.N;
@@ -407,11 +415,6 @@ template <class Potential> inline PilotOutcome run_pilot(const Config &config) {
         // --------------------------
         std::cout << "\n2. Checking stochastic error...";
         // estimate worst stochastic error
-        constexpr double stochastic_relative_tolerance = 0.03;
-        constexpr double stochastic_absolute_tolerance = 1.0e-2;
-
-        constexpr double time_relative_tolerance = 0.05;
-        constexpr double time_absolute_tolerance = 1.0e-2;
 
         const StochasticReport total_stoachstic_report_h = estimate_stochastic_error(
             total_h, stochastic_relative_tolerance, stochastic_absolute_tolerance);
