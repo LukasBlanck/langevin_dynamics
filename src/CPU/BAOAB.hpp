@@ -33,7 +33,7 @@ class BAOAB {
 
     inline void step(std::mt19937_64 &rng) {
 
-        compute_force();
+        compute_force();    // do this outside step? only one force eval per step is necessary...
 
         // -- B -- update p
         for (int i = 0; i < N_; i++) {
