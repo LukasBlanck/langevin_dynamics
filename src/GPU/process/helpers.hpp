@@ -104,9 +104,8 @@ inline void normalized_energy_per_batch(const std::vector<double> &energy,
             total_energy_per_batch += value;
         }
 
-        if (!(total_energy_per_batch > 0.0) || !std::isfinite(total_energy_per_batch)) {
-            throw std::runtime_error("Cannot normalize a non-positive or "
-                                     "non-finite energy profile");
+        if (std::abs(total_energy_per_batch) < 1e-14 || !std::isfinite(total_energy_per_batch)) {
+            throw std::runtime_error("Cannot normalize a zero or non-finite energy profile");
         }
 
         for (int site = 0; site < N; ++site) {

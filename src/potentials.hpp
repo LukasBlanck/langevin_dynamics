@@ -45,7 +45,7 @@ struct JosephsonPotential {
     explicit JosephsonPotential(const Config &config) : EJ(config.model.EJ) {}
 
     // potential V
-    LANGEVIN_HD inline double V(double r) const { return -EJ * std::cos(r); }
+    LANGEVIN_HD inline double V(double r) const { return 1 - EJ * std::cos(r); }
 
     // derivative dV/dr
     LANGEVIN_HD inline double dV(double r) const { return EJ * std::sin(r); }
